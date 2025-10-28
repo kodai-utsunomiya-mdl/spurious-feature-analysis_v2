@@ -1,0 +1,105 @@
+wandb is enabled and initialized.
+Results will be saved to: results/wb_vit_scc_gf_example_2025-10-28_08-22-43
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+
+Displaying and saving 10 sample images from the WaterBirds train set...
+Sample images saved to results/wb_vit_scc_gf_example_2025-10-28_08-22-43/dataset_samples.png
+
+--- SCC-GF (Debias Method) Enabled ---
+  Using SCC-GF mini-batch size: 64
+  Calculated statistics and weights:
+  E[Y] (y_bar) = -0.5358
+  E[A] (a_bar) = -0.4824
+  w_g(-1.0, -1.0) = 0.569146
+  w_g(-1.0, 1.0) = 0.198737
+  w_g(1.0, -1.0) = 0.172042
+  w_g(1.0, 1.0) = 0.060074
+
+--- Train Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :  1057 samples
+Waterbird on Land (y=+1, a=-1)     :    56 samples
+Landbird on Water (y=-1, a=+1)     :   184 samples
+Landbird on Land (y=-1, a=-1)      :  3498 samples
+Total                              :  4795 samples
+
+
+--- Test Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :   642 samples
+Waterbird on Land (y=+1, a=-1)     :   642 samples
+Landbird on Water (y=-1, a=+1)     :  2255 samples
+Landbird on Land (y=-1, a=-1)      :  2255 samples
+Total                              :  5794 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+
+Applying parametrization for 'ViT'...
+        - WARNING: 'mf' scaling is not implemented for ViT.
+        - Applying single Base LR (η = 1.00e-02) to all parameters.
+        - All ViT parameters: LR = 1.00e-02
+
+--- 3. Starting Training & Evaluation Loop ---
+Using batch size for Evaluation and Analysis: 64
+Epoch     1/2000 | Train [Loss: 19.7328, Worst: 34.7966, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 19.5307, Worst: 34.7950, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+Warning: Analysis functions (e.g., analyze_gradient_gram_matrix) might also cause OOM.
+         Consider implementing mini-batching in analysis.py if OOM occurs here.
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 1 ===========================
+
+Epoch     2/2000 | Train [Loss: 16.3298, Worst: 19.5017, Acc: 0.2321, Worst: 0.0000] | Test [Loss: 16.4732, Worst: 19.5017, Acc: 0.2216, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 2 =========================
+Warning: Analysis functions (e.g., analyze_gradient_gram_matrix) might also cause OOM.
+         Consider implementing mini-batching in analysis.py if OOM occurs here.
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 2 ===========================
+
+Epoch     3/2000 | Train [Loss: 161.5990, Worst: 202.2099, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 161.0448, Worst: 202.2098, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 3 =========================
+Warning: Analysis functions (e.g., analyze_gradient_gram_matrix) might also cause OOM.
+         Consider implementing mini-batching in analysis.py if OOM occurs here.
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 3 ===========================
+
+Epoch     4/2000 | Train [Loss: 1867.1333, Worst: 1906.7518, Acc: 0.2321, Worst: 0.0000] | Test [Loss: 1868.9288, Worst: 1906.7528, Acc: 0.2216, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 4 =========================
+Warning: Analysis functions (e.g., analyze_gradient_gram_matrix) might also cause OOM.
+         Consider implementing mini-batching in analysis.py if OOM occurs here.
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 4 ===========================
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 802, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 685, in main
+    train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name, batch_size=eval_batch_size)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/utils.py", line 248, in evaluate_model
+    all_scores.append(scores_batch.cpu())
+                      ^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

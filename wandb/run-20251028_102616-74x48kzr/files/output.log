@@ -1,0 +1,1276 @@
+wandb is enabled and initialized.
+Results will be saved to: results/cm_gradient_basis_2025-10-28_10-26-17
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+Preparing Colored MNIST for train set...
+  Target Stats: N=50000, E[Y]=0.0, E[A]=0.0, Cov(Y,A)=0.8
+Preparing Colored MNIST for test set...
+  Target Stats: N=9000, E[Y]=0.0, E[A]=0.0, Cov(Y,A)=0.0
+
+Displaying and saving 10 sample images from the ColoredMNIST train set...
+Sample images saved to results/cm_gradient_basis_2025-10-28_10-26-17/dataset_samples.png
+
+--- ERM (Debias Method: None) Enabled ---
+  Using batch_size: 50000
+
+--- Train Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         : 22500 samples
+Digit>=5, Green (y=+1, a=-1)       :  2500 samples
+Digit<5, Red (y=-1, a=+1)          :  2500 samples
+Digit<5, Green (y=-1, a=-1)        : 22500 samples
+Total                              : 50000 samples
+
+
+--- Test Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         :  2250 samples
+Digit>=5, Green (y=+1, a=-1)       :  2250 samples
+Digit<5, Red (y=-1, a=+1)          :  2250 samples
+Digit<5, Green (y=-1, a=-1)        :  2250 samples
+Total                              :  9000 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+
+Applying manual parametrization for 'NTP_two_layer'...
+        - Input Dim (d): 2352, Hidden Dim (n): 4096, Base LR (η): 0.1
+        - Input Layer (W^1):        Init Var = 1.00, LR = 1.00e-01
+        - Output Layer (W^L+1): Init Var = 1.00, LR = 1.00e-01
+
+--- 3. Starting Training & Evaluation Loop ---
+Epoch     1/20000 | Train [Loss: 1.4480, Worst: 1.7056, Acc: 0.4510, Worst: 0.3513] | Test [Loss: 1.0871, Worst: 1.6128, Acc: 0.5946, Worst: 0.3716]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 1 ===========================
+
+Epoch     2/20000 | Train [Loss: 1.4197, Worst: 1.6533, Acc: 0.4592, Worst: 0.3679] | Test [Loss: 1.0784, Worst: 1.5616, Acc: 0.5960, Worst: 0.3920]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 2 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 2 ===========================
+
+Epoch     3/20000 | Train [Loss: 1.3924, Worst: 1.6037, Acc: 0.4675, Worst: 0.3844] | Test [Loss: 1.0704, Worst: 1.5131, Acc: 0.5989, Worst: 0.4120]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 3 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 3 ===========================
+
+Epoch     4/20000 | Train [Loss: 1.3660, Worst: 1.5566, Acc: 0.4760, Worst: 0.4007] | Test [Loss: 1.0630, Worst: 1.4670, Acc: 0.6006, Worst: 0.4271]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 4 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 4 ===========================
+
+Epoch     5/20000 | Train [Loss: 1.3406, Worst: 1.5119, Acc: 0.4833, Worst: 0.4151] | Test [Loss: 1.0561, Worst: 1.4233, Acc: 0.6018, Worst: 0.4444]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 5 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 5 ===========================
+
+Epoch     6/20000 | Train [Loss: 1.3159, Worst: 1.4694, Acc: 0.4912, Worst: 0.4307] | Test [Loss: 1.0498, Worst: 1.3818, Acc: 0.6039, Worst: 0.4649]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 6 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 6 ===========================
+
+Epoch     7/20000 | Train [Loss: 1.2921, Worst: 1.4289, Acc: 0.4987, Worst: 0.4452] | Test [Loss: 1.0439, Worst: 1.3422, Acc: 0.6052, Worst: 0.4796]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 7 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 7 ===========================
+
+Epoch     8/20000 | Train [Loss: 1.2690, Worst: 1.3903, Acc: 0.5061, Worst: 0.4596] | Test [Loss: 1.0385, Worst: 1.3046, Acc: 0.6058, Worst: 0.4942]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 8 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 8 ===========================
+
+Epoch     9/20000 | Train [Loss: 1.2467, Worst: 1.3535, Acc: 0.5138, Worst: 0.4733] | Test [Loss: 1.0335, Worst: 1.2687, Acc: 0.6049, Worst: 0.5071]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 9 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 9 ===========================
+
+Epoch    10/20000 | Train [Loss: 1.2250, Worst: 1.3184, Acc: 0.5213, Worst: 0.4875] | Test [Loss: 1.0289, Worst: 1.2345, Acc: 0.6046, Worst: 0.5196]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 10 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 10 ===========================
+
+Epoch    11/20000 | Train [Loss: 1.2041, Worst: 1.2848, Acc: 0.5284, Worst: 0.4999] | Test [Loss: 1.0247, Worst: 1.2103, Acc: 0.6046, Worst: 0.5293]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 11 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 11 ===========================
+
+Epoch    12/20000 | Train [Loss: 1.1837, Worst: 1.2527, Acc: 0.5350, Worst: 0.5119] | Test [Loss: 1.0209, Worst: 1.1938, Acc: 0.6023, Worst: 0.5347]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 12 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 12 ===========================
+
+Epoch    13/20000 | Train [Loss: 1.1640, Worst: 1.2220, Acc: 0.5416, Worst: 0.5242] | Test [Loss: 1.0174, Worst: 1.1771, Acc: 0.6028, Worst: 0.5400]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 13 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 13 ===========================
+
+Epoch    14/20000 | Train [Loss: 1.1449, Worst: 1.1926, Acc: 0.5478, Worst: 0.5356] | Test [Loss: 1.0142, Worst: 1.1606, Acc: 0.6014, Worst: 0.5427]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 14 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 14 ===========================
+
+Epoch    15/20000 | Train [Loss: 1.1264, Worst: 1.1644, Acc: 0.5544, Worst: 0.5425] | Test [Loss: 1.0113, Worst: 1.1440, Acc: 0.6011, Worst: 0.5476]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 15 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 15 ===========================
+
+Epoch    16/20000 | Train [Loss: 1.1084, Worst: 1.1374, Acc: 0.5611, Worst: 0.5480] | Test [Loss: 1.0087, Worst: 1.1276, Acc: 0.6019, Worst: 0.5551]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 16 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 16 ===========================
+
+Epoch    17/20000 | Train [Loss: 1.0909, Worst: 1.1114, Acc: 0.5679, Worst: 0.5531] | Test [Loss: 1.0064, Worst: 1.1112, Acc: 0.6009, Worst: 0.5573]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 17 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 17 ===========================
+
+Epoch    18/20000 | Train [Loss: 1.0740, Worst: 1.0899, Acc: 0.5743, Worst: 0.5588] | Test [Loss: 1.0043, Worst: 1.0950, Acc: 0.6007, Worst: 0.5609]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 18 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 18 ===========================
+
+Epoch    19/20000 | Train [Loss: 1.0575, Worst: 1.0738, Acc: 0.5805, Worst: 0.5640] | Test [Loss: 1.0025, Worst: 1.0789, Acc: 0.6017, Worst: 0.5658]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 19 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 19 ===========================
+
+Epoch    20/20000 | Train [Loss: 1.0415, Worst: 1.0579, Acc: 0.5866, Worst: 0.5692] | Test [Loss: 1.0009, Worst: 1.0630, Acc: 0.6009, Worst: 0.5698]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 20 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 20 ===========================
+
+Epoch    21/20000 | Train [Loss: 1.0260, Worst: 1.0421, Acc: 0.5925, Worst: 0.5754] | Test [Loss: 0.9996, Worst: 1.0472, Acc: 0.6021, Worst: 0.5707]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 21 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 21 ===========================
+
+Epoch    22/20000 | Train [Loss: 1.0109, Worst: 1.0490, Acc: 0.5982, Worst: 0.5803] | Test [Loss: 0.9984, Worst: 1.0316, Acc: 0.6013, Worst: 0.5604]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 22 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 22 ===========================
+
+Epoch    23/20000 | Train [Loss: 0.9963, Worst: 1.0622, Acc: 0.6044, Worst: 0.5748] | Test [Loss: 0.9975, Worst: 1.0451, Acc: 0.6023, Worst: 0.5524]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 23 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 23 ===========================
+
+Epoch    24/20000 | Train [Loss: 0.9821, Worst: 1.0756, Acc: 0.6097, Worst: 0.5696] | Test [Loss: 0.9968, Worst: 1.0630, Acc: 0.6016, Worst: 0.5444]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 24 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 24 ===========================
+
+Epoch    25/20000 | Train [Loss: 0.9682, Worst: 1.0891, Acc: 0.6154, Worst: 0.5644] | Test [Loss: 0.9962, Worst: 1.0807, Acc: 0.6014, Worst: 0.5364]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 25 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 25 ===========================
+
+Epoch    26/20000 | Train [Loss: 0.9548, Worst: 1.1026, Acc: 0.6206, Worst: 0.5564] | Test [Loss: 0.9958, Worst: 1.0981, Acc: 0.6014, Worst: 0.5289]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 26 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 26 ===========================
+
+Epoch    27/20000 | Train [Loss: 0.9417, Worst: 1.1162, Acc: 0.6256, Worst: 0.5496] | Test [Loss: 0.9956, Worst: 1.1152, Acc: 0.6013, Worst: 0.5191]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 27 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 27 ===========================
+
+Epoch    28/20000 | Train [Loss: 0.9291, Worst: 1.1298, Acc: 0.6310, Worst: 0.5416] | Test [Loss: 0.9956, Worst: 1.1322, Acc: 0.6004, Worst: 0.5116]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 28 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 28 ===========================
+
+Epoch    29/20000 | Train [Loss: 0.9167, Worst: 1.1435, Acc: 0.6358, Worst: 0.5320] | Test [Loss: 0.9957, Worst: 1.1489, Acc: 0.6007, Worst: 0.5049]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 29 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 29 ===========================
+
+Epoch    30/20000 | Train [Loss: 0.9047, Worst: 1.1572, Acc: 0.6409, Worst: 0.5240] | Test [Loss: 0.9960, Worst: 1.1654, Acc: 0.5991, Worst: 0.4978]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 30 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 30 ===========================
+
+Epoch    31/20000 | Train [Loss: 0.8931, Worst: 1.1709, Acc: 0.6459, Worst: 0.5144] | Test [Loss: 0.9964, Worst: 1.1817, Acc: 0.5984, Worst: 0.4898]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 31 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 31 ===========================
+
+Epoch    32/20000 | Train [Loss: 0.8818, Worst: 1.1846, Acc: 0.6507, Worst: 0.5064] | Test [Loss: 0.9969, Worst: 1.1977, Acc: 0.5977, Worst: 0.4836]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 32 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 32 ===========================
+
+Epoch    33/20000 | Train [Loss: 0.8707, Worst: 1.1983, Acc: 0.6553, Worst: 0.5016] | Test [Loss: 0.9975, Worst: 1.2135, Acc: 0.5971, Worst: 0.4756]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 33 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 33 ===========================
+
+Epoch    34/20000 | Train [Loss: 0.8600, Worst: 1.2120, Acc: 0.6602, Worst: 0.4936] | Test [Loss: 0.9983, Worst: 1.2292, Acc: 0.5958, Worst: 0.4693]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 34 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 34 ===========================
+
+Epoch    35/20000 | Train [Loss: 0.8496, Worst: 1.2257, Acc: 0.6650, Worst: 0.4872] | Test [Loss: 0.9992, Worst: 1.2446, Acc: 0.5939, Worst: 0.4618]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 35 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 35 ===========================
+
+Epoch    36/20000 | Train [Loss: 0.8395, Worst: 1.2393, Acc: 0.6696, Worst: 0.4804] | Test [Loss: 1.0002, Worst: 1.2598, Acc: 0.5928, Worst: 0.4542]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 36 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 36 ===========================
+
+Epoch    37/20000 | Train [Loss: 0.8296, Worst: 1.2530, Acc: 0.6744, Worst: 0.4720] | Test [Loss: 1.0013, Worst: 1.2749, Acc: 0.5932, Worst: 0.4480]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 37 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 37 ===========================
+
+Epoch    38/20000 | Train [Loss: 0.8200, Worst: 1.2666, Acc: 0.6783, Worst: 0.4652] | Test [Loss: 1.0025, Worst: 1.2897, Acc: 0.5917, Worst: 0.4427]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 38 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 38 ===========================
+
+Epoch    39/20000 | Train [Loss: 0.8107, Worst: 1.2801, Acc: 0.6832, Worst: 0.4584] | Test [Loss: 1.0038, Worst: 1.3044, Acc: 0.5912, Worst: 0.4356]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 39 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 39 ===========================
+
+Epoch    40/20000 | Train [Loss: 0.8017, Worst: 1.2936, Acc: 0.6878, Worst: 0.4520] | Test [Loss: 1.0051, Worst: 1.3188, Acc: 0.5909, Worst: 0.4289]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 40 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 40 ===========================
+
+Epoch    41/20000 | Train [Loss: 0.7928, Worst: 1.3071, Acc: 0.6918, Worst: 0.4460] | Test [Loss: 1.0066, Worst: 1.3331, Acc: 0.5902, Worst: 0.4218]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 41 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 41 ===========================
+
+Epoch    42/20000 | Train [Loss: 0.7843, Worst: 1.3205, Acc: 0.6956, Worst: 0.4412] | Test [Loss: 1.0081, Worst: 1.3472, Acc: 0.5891, Worst: 0.4142]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 42 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 42 ===========================
+
+Epoch    43/20000 | Train [Loss: 0.7759, Worst: 1.3338, Acc: 0.6997, Worst: 0.4368] | Test [Loss: 1.0098, Worst: 1.3611, Acc: 0.5874, Worst: 0.4067]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 43 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 43 ===========================
+
+Epoch    44/20000 | Train [Loss: 0.7678, Worst: 1.3471, Acc: 0.7039, Worst: 0.4328] | Test [Loss: 1.0114, Worst: 1.3749, Acc: 0.5866, Worst: 0.4000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 44 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 44 ===========================
+
+Epoch    45/20000 | Train [Loss: 0.7599, Worst: 1.3603, Acc: 0.7071, Worst: 0.4268] | Test [Loss: 1.0132, Worst: 1.3884, Acc: 0.5863, Worst: 0.3960]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 45 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 45 ===========================
+
+Epoch    46/20000 | Train [Loss: 0.7522, Worst: 1.3734, Acc: 0.7108, Worst: 0.4224] | Test [Loss: 1.0150, Worst: 1.4019, Acc: 0.5854, Worst: 0.3880]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 46 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 46 ===========================
+
+Epoch    47/20000 | Train [Loss: 0.7447, Worst: 1.3865, Acc: 0.7142, Worst: 0.4184] | Test [Loss: 1.0169, Worst: 1.4151, Acc: 0.5847, Worst: 0.3849]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 47 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 47 ===========================
+
+Epoch    48/20000 | Train [Loss: 0.7375, Worst: 1.3995, Acc: 0.7179, Worst: 0.4144] | Test [Loss: 1.0188, Worst: 1.4282, Acc: 0.5836, Worst: 0.3796]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 48 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 48 ===========================
+
+Epoch    49/20000 | Train [Loss: 0.7304, Worst: 1.4124, Acc: 0.7216, Worst: 0.4056] | Test [Loss: 1.0208, Worst: 1.4411, Acc: 0.5831, Worst: 0.3747]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 49 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 49 ===========================
+
+Epoch    50/20000 | Train [Loss: 0.7235, Worst: 1.4252, Acc: 0.7256, Worst: 0.4020] | Test [Loss: 1.0228, Worst: 1.4538, Acc: 0.5838, Worst: 0.3702]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 50 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 50 ===========================
+
+Epoch    51/20000 | Train [Loss: 0.7168, Worst: 1.4379, Acc: 0.7283, Worst: 0.3968] | Test [Loss: 1.0249, Worst: 1.4664, Acc: 0.5834, Worst: 0.3653]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 51 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 51 ===========================
+
+Epoch    52/20000 | Train [Loss: 0.7102, Worst: 1.4505, Acc: 0.7320, Worst: 0.3904] | Test [Loss: 1.0270, Worst: 1.4788, Acc: 0.5836, Worst: 0.3613]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 52 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 52 ===========================
+
+Epoch    53/20000 | Train [Loss: 0.7039, Worst: 1.4630, Acc: 0.7350, Worst: 0.3840] | Test [Loss: 1.0292, Worst: 1.4911, Acc: 0.5831, Worst: 0.3573]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 53 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 53 ===========================
+
+Epoch    54/20000 | Train [Loss: 0.6977, Worst: 1.4754, Acc: 0.7382, Worst: 0.3808] | Test [Loss: 1.0314, Worst: 1.5032, Acc: 0.5822, Worst: 0.3516]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 54 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 54 ===========================
+
+Epoch    55/20000 | Train [Loss: 0.6917, Worst: 1.4878, Acc: 0.7410, Worst: 0.3744] | Test [Loss: 1.0336, Worst: 1.5152, Acc: 0.5809, Worst: 0.3453]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 55 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 55 ===========================
+
+Epoch    56/20000 | Train [Loss: 0.6858, Worst: 1.5000, Acc: 0.7439, Worst: 0.3684] | Test [Loss: 1.0359, Worst: 1.5270, Acc: 0.5803, Worst: 0.3404]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 56 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 56 ===========================
+
+Epoch    57/20000 | Train [Loss: 0.6801, Worst: 1.5121, Acc: 0.7469, Worst: 0.3640] | Test [Loss: 1.0381, Worst: 1.5387, Acc: 0.5808, Worst: 0.3382]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 57 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 57 ===========================
+
+Epoch    58/20000 | Train [Loss: 0.6745, Worst: 1.5241, Acc: 0.7500, Worst: 0.3608] | Test [Loss: 1.0405, Worst: 1.5503, Acc: 0.5786, Worst: 0.3329]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 58 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 58 ===========================
+
+Epoch    59/20000 | Train [Loss: 0.6691, Worst: 1.5361, Acc: 0.7528, Worst: 0.3584] | Test [Loss: 1.0428, Worst: 1.5616, Acc: 0.5786, Worst: 0.3293]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 59 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 59 ===========================
+
+Epoch    60/20000 | Train [Loss: 0.6638, Worst: 1.5479, Acc: 0.7552, Worst: 0.3524] | Test [Loss: 1.0452, Worst: 1.5729, Acc: 0.5773, Worst: 0.3249]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 60 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 60 ===========================
+
+Epoch    61/20000 | Train [Loss: 0.6587, Worst: 1.5596, Acc: 0.7579, Worst: 0.3480] | Test [Loss: 1.0476, Worst: 1.5840, Acc: 0.5774, Worst: 0.3218]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 61 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 61 ===========================
+
+Epoch    62/20000 | Train [Loss: 0.6537, Worst: 1.5712, Acc: 0.7606, Worst: 0.3432] | Test [Loss: 1.0500, Worst: 1.5950, Acc: 0.5763, Worst: 0.3200]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 62 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 62 ===========================
+
+Epoch    63/20000 | Train [Loss: 0.6488, Worst: 1.5827, Acc: 0.7631, Worst: 0.3368] | Test [Loss: 1.0524, Worst: 1.6058, Acc: 0.5757, Worst: 0.3164]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 63 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 63 ===========================
+
+Epoch    64/20000 | Train [Loss: 0.6441, Worst: 1.5941, Acc: 0.7657, Worst: 0.3308] | Test [Loss: 1.0548, Worst: 1.6165, Acc: 0.5747, Worst: 0.3116]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 64 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 64 ===========================
+
+Epoch    65/20000 | Train [Loss: 0.6394, Worst: 1.6053, Acc: 0.7685, Worst: 0.3268] | Test [Loss: 1.0573, Worst: 1.6271, Acc: 0.5738, Worst: 0.3071]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 65 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 65 ===========================
+
+Epoch    66/20000 | Train [Loss: 0.6349, Worst: 1.6165, Acc: 0.7711, Worst: 0.3240] | Test [Loss: 1.0597, Worst: 1.6375, Acc: 0.5739, Worst: 0.3044]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 66 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 66 ===========================
+
+Epoch    67/20000 | Train [Loss: 0.6305, Worst: 1.6275, Acc: 0.7735, Worst: 0.3208] | Test [Loss: 1.0622, Worst: 1.6478, Acc: 0.5744, Worst: 0.3022]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 67 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 67 ===========================
+
+Epoch    68/20000 | Train [Loss: 0.6263, Worst: 1.6385, Acc: 0.7759, Worst: 0.3176] | Test [Loss: 1.0647, Worst: 1.6580, Acc: 0.5744, Worst: 0.2996]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 68 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 68 ===========================
+
+Epoch    69/20000 | Train [Loss: 0.6221, Worst: 1.6493, Acc: 0.7781, Worst: 0.3120] | Test [Loss: 1.0671, Worst: 1.6680, Acc: 0.5743, Worst: 0.2964]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 69 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 69 ===========================
+
+Epoch    70/20000 | Train [Loss: 0.6180, Worst: 1.6600, Acc: 0.7806, Worst: 0.3072] | Test [Loss: 1.0696, Worst: 1.6779, Acc: 0.5731, Worst: 0.2924]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 70 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 70 ===========================
+
+Epoch    71/20000 | Train [Loss: 0.6141, Worst: 1.6706, Acc: 0.7829, Worst: 0.3028] | Test [Loss: 1.0721, Worst: 1.6877, Acc: 0.5721, Worst: 0.2889]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 71 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 71 ===========================
+
+Epoch    72/20000 | Train [Loss: 0.6102, Worst: 1.6811, Acc: 0.7849, Worst: 0.2992] | Test [Loss: 1.0746, Worst: 1.6974, Acc: 0.5722, Worst: 0.2871]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 72 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 72 ===========================
+
+Epoch    73/20000 | Train [Loss: 0.6064, Worst: 1.6915, Acc: 0.7869, Worst: 0.2952] | Test [Loss: 1.0771, Worst: 1.7069, Acc: 0.5726, Worst: 0.2853]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 73 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 73 ===========================
+
+Epoch    74/20000 | Train [Loss: 0.6028, Worst: 1.7018, Acc: 0.7887, Worst: 0.2912] | Test [Loss: 1.0796, Worst: 1.7164, Acc: 0.5716, Worst: 0.2836]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 74 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 74 ===========================
+
+Epoch    75/20000 | Train [Loss: 0.5992, Worst: 1.7119, Acc: 0.7910, Worst: 0.2884] | Test [Loss: 1.0821, Worst: 1.7257, Acc: 0.5698, Worst: 0.2796]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 75 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 75 ===========================
+
+Epoch    76/20000 | Train [Loss: 0.5957, Worst: 1.7220, Acc: 0.7928, Worst: 0.2852] | Test [Loss: 1.0846, Worst: 1.7348, Acc: 0.5684, Worst: 0.2729]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 76 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 76 ===========================
+
+Epoch    77/20000 | Train [Loss: 0.5923, Worst: 1.7319, Acc: 0.7946, Worst: 0.2812] | Test [Loss: 1.0870, Worst: 1.7439, Acc: 0.5677, Worst: 0.2711]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 77 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 77 ===========================
+
+Epoch    78/20000 | Train [Loss: 0.5890, Worst: 1.7417, Acc: 0.7967, Worst: 0.2772] | Test [Loss: 1.0895, Worst: 1.7529, Acc: 0.5674, Worst: 0.2684]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 78 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 78 ===========================
+
+Epoch    79/20000 | Train [Loss: 0.5858, Worst: 1.7515, Acc: 0.7983, Worst: 0.2712] | Test [Loss: 1.0920, Worst: 1.7617, Acc: 0.5661, Worst: 0.2658]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 79 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 79 ===========================
+
+Epoch    80/20000 | Train [Loss: 0.5826, Worst: 1.7611, Acc: 0.7997, Worst: 0.2664] | Test [Loss: 1.0944, Worst: 1.7704, Acc: 0.5657, Worst: 0.2640]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 80 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 80 ===========================
+
+Epoch    81/20000 | Train [Loss: 0.5795, Worst: 1.7706, Acc: 0.8014, Worst: 0.2624] | Test [Loss: 1.0969, Worst: 1.7790, Acc: 0.5658, Worst: 0.2613]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 81 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 81 ===========================
+
+Epoch    82/20000 | Train [Loss: 0.5765, Worst: 1.7799, Acc: 0.8033, Worst: 0.2580] | Test [Loss: 1.0993, Worst: 1.7875, Acc: 0.5663, Worst: 0.2609]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 82 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 82 ===========================
+
+Epoch    83/20000 | Train [Loss: 0.5736, Worst: 1.7892, Acc: 0.8048, Worst: 0.2552] | Test [Loss: 1.1018, Worst: 1.7959, Acc: 0.5667, Worst: 0.2596]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 83 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 83 ===========================
+
+Epoch    84/20000 | Train [Loss: 0.5708, Worst: 1.7984, Acc: 0.8072, Worst: 0.2528] | Test [Loss: 1.1042, Worst: 1.8042, Acc: 0.5663, Worst: 0.2556]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 84 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 84 ===========================
+
+Epoch    85/20000 | Train [Loss: 0.5680, Worst: 1.8074, Acc: 0.8087, Worst: 0.2504] | Test [Loss: 1.1066, Worst: 1.8123, Acc: 0.5666, Worst: 0.2551]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 85 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 85 ===========================
+
+Epoch    86/20000 | Train [Loss: 0.5653, Worst: 1.8164, Acc: 0.8104, Worst: 0.2492] | Test [Loss: 1.1090, Worst: 1.8204, Acc: 0.5667, Worst: 0.2516]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 86 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 86 ===========================
+
+Epoch    87/20000 | Train [Loss: 0.5626, Worst: 1.8252, Acc: 0.8120, Worst: 0.2448] | Test [Loss: 1.1114, Worst: 1.8283, Acc: 0.5660, Worst: 0.2498]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 87 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 87 ===========================
+
+Epoch    88/20000 | Train [Loss: 0.5600, Worst: 1.8340, Acc: 0.8134, Worst: 0.2392] | Test [Loss: 1.1138, Worst: 1.8362, Acc: 0.5654, Worst: 0.2449]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 88 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 88 ===========================
+
+Epoch    89/20000 | Train [Loss: 0.5575, Worst: 1.8426, Acc: 0.8148, Worst: 0.2376] | Test [Loss: 1.1162, Worst: 1.8439, Acc: 0.5648, Worst: 0.2431]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 89 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 89 ===========================
+
+Epoch    90/20000 | Train [Loss: 0.5550, Worst: 1.8512, Acc: 0.8163, Worst: 0.2344] | Test [Loss: 1.1185, Worst: 1.8515, Acc: 0.5640, Worst: 0.2391]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 90 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 90 ===========================
+
+Epoch    91/20000 | Train [Loss: 0.5526, Worst: 1.8596, Acc: 0.8178, Worst: 0.2316] | Test [Loss: 1.1208, Worst: 1.8591, Acc: 0.5634, Worst: 0.2364]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 91 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 91 ===========================
+
+Epoch    92/20000 | Train [Loss: 0.5502, Worst: 1.8679, Acc: 0.8189, Worst: 0.2268] | Test [Loss: 1.1232, Worst: 1.8665, Acc: 0.5623, Worst: 0.2311]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 92 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 92 ===========================
+
+Epoch    93/20000 | Train [Loss: 0.5479, Worst: 1.8761, Acc: 0.8201, Worst: 0.2240] | Test [Loss: 1.1255, Worst: 1.8738, Acc: 0.5619, Worst: 0.2276]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 93 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 93 ===========================
+
+Epoch    94/20000 | Train [Loss: 0.5457, Worst: 1.8842, Acc: 0.8217, Worst: 0.2228] | Test [Loss: 1.1278, Worst: 1.8811, Acc: 0.5617, Worst: 0.2253]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 94 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 94 ===========================
+
+Epoch    95/20000 | Train [Loss: 0.5435, Worst: 1.8922, Acc: 0.8232, Worst: 0.2200] | Test [Loss: 1.1300, Worst: 1.8882, Acc: 0.5613, Worst: 0.2218]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 95 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 95 ===========================
+
+Epoch    96/20000 | Train [Loss: 0.5414, Worst: 1.9002, Acc: 0.8245, Worst: 0.2180] | Test [Loss: 1.1323, Worst: 1.8953, Acc: 0.5608, Worst: 0.2187]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 96 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 96 ===========================
+
+Epoch    97/20000 | Train [Loss: 0.5393, Worst: 1.9080, Acc: 0.8257, Worst: 0.2176] | Test [Loss: 1.1345, Worst: 1.9022, Acc: 0.5601, Worst: 0.2160]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 97 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 97 ===========================
+
+Epoch    98/20000 | Train [Loss: 0.5372, Worst: 1.9157, Acc: 0.8270, Worst: 0.2152] | Test [Loss: 1.1368, Worst: 1.9091, Acc: 0.5599, Worst: 0.2142]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 98 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 98 ===========================
+
+Epoch    99/20000 | Train [Loss: 0.5352, Worst: 1.9233, Acc: 0.8286, Worst: 0.2140] | Test [Loss: 1.1390, Worst: 1.9158, Acc: 0.5590, Worst: 0.2107]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 99 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 99 ===========================
+
+Epoch   100/20000 | Train [Loss: 0.5333, Worst: 1.9308, Acc: 0.8298, Worst: 0.2132] | Test [Loss: 1.1411, Worst: 1.9225, Acc: 0.5588, Worst: 0.2093]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 100 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 100 ===========================
+
+Epoch   101/20000 | Train [Loss: 0.5314, Worst: 1.9383, Acc: 0.8309, Worst: 0.2112] | Test [Loss: 1.1433, Worst: 1.9291, Acc: 0.5576, Worst: 0.2062]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 101 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 101 ===========================
+
+Epoch   102/20000 | Train [Loss: 0.5295, Worst: 1.9456, Acc: 0.8319, Worst: 0.2076] | Test [Loss: 1.1455, Worst: 1.9355, Acc: 0.5570, Worst: 0.2044]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 102 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 102 ===========================
+
+Epoch   103/20000 | Train [Loss: 0.5277, Worst: 1.9528, Acc: 0.8329, Worst: 0.2048] | Test [Loss: 1.1476, Worst: 1.9419, Acc: 0.5566, Worst: 0.2013]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 103 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 103 ===========================
+
+Epoch   104/20000 | Train [Loss: 0.5259, Worst: 1.9600, Acc: 0.8342, Worst: 0.2040] | Test [Loss: 1.1497, Worst: 1.9482, Acc: 0.5561, Worst: 0.1996]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 104 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 104 ===========================
+
+Epoch   105/20000 | Train [Loss: 0.5242, Worst: 1.9670, Acc: 0.8351, Worst: 0.2024] | Test [Loss: 1.1518, Worst: 1.9545, Acc: 0.5550, Worst: 0.1978]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 105 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 105 ===========================
+
+Epoch   106/20000 | Train [Loss: 0.5225, Worst: 1.9740, Acc: 0.8359, Worst: 0.2016] | Test [Loss: 1.1539, Worst: 1.9606, Acc: 0.5548, Worst: 0.1956]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 106 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 106 ===========================
+
+Epoch   107/20000 | Train [Loss: 0.5208, Worst: 1.9808, Acc: 0.8367, Worst: 0.1988] | Test [Loss: 1.1559, Worst: 1.9666, Acc: 0.5543, Worst: 0.1929]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 107 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 107 ===========================
+
+Epoch   108/20000 | Train [Loss: 0.5192, Worst: 1.9876, Acc: 0.8378, Worst: 0.1968] | Test [Loss: 1.1580, Worst: 1.9726, Acc: 0.5543, Worst: 0.1916]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 108 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 108 ===========================
+
+Epoch   109/20000 | Train [Loss: 0.5176, Worst: 1.9943, Acc: 0.8386, Worst: 0.1940] | Test [Loss: 1.1600, Worst: 1.9785, Acc: 0.5537, Worst: 0.1884]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 109 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 109 ===========================
+
+Epoch   110/20000 | Train [Loss: 0.5160, Worst: 2.0009, Acc: 0.8395, Worst: 0.1924] | Test [Loss: 1.1620, Worst: 1.9843, Acc: 0.5532, Worst: 0.1871]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 110 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 110 ===========================
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 413, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 291, in main
+    for X_batch, y_batch in train_loader:
+                            ^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 732, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 788, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/fetch.py", line 55, in fetch
+    return self.collate_fn(data)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/collate.py", line 398, in default_collate
+    return collate(batch, collate_fn_map=default_collate_fn_map)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/collate.py", line 212, in collate
+    collate(samples, collate_fn_map=collate_fn_map)
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/collate.py", line 155, in collate
+    return collate_fn_map[elem_type](batch, collate_fn_map=collate_fn_map)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/collate.py", line 272, in collate_tensor_fn
+    return torch.stack(batch, 0, out=out)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

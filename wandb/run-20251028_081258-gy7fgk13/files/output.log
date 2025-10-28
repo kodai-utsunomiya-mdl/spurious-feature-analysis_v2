@@ -1,0 +1,125 @@
+wandb is enabled and initialized.
+Results will be saved to: results/wb_vit_scc_gf_example_2025-10-28_08-12-59
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+
+Displaying and saving 10 sample images from the WaterBirds train set...
+Sample images saved to results/wb_vit_scc_gf_example_2025-10-28_08-12-59/dataset_samples.png
+
+--- SCC-GF (Debias Method) Enabled ---
+  Using SCC-GF mini-batch size: 64
+  Calculated statistics and weights:
+  E[Y] (y_bar) = -0.5358
+  E[A] (a_bar) = -0.4824
+  w_g(-1.0, -1.0) = 0.569146
+  w_g(-1.0, 1.0) = 0.198737
+  w_g(1.0, -1.0) = 0.172042
+  w_g(1.0, 1.0) = 0.060074
+
+--- Train Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :  1057 samples
+Waterbird on Land (y=+1, a=-1)     :    56 samples
+Landbird on Water (y=-1, a=+1)     :   184 samples
+Landbird on Land (y=-1, a=-1)      :  3498 samples
+Total                              :  4795 samples
+
+
+--- Test Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :   642 samples
+Waterbird on Land (y=+1, a=-1)     :   642 samples
+Landbird on Water (y=-1, a=+1)     :  2255 samples
+Landbird on Land (y=-1, a=-1)      :  2255 samples
+Total                              :  5794 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+
+Applying parametrization for 'ViT'...
+        - WARNING: 'mf' scaling is not implemented for ViT.
+        - Applying single Base LR (η = 1.00e-02) to all parameters.
+        - All ViT parameters: LR = 1.00e-02
+
+--- 3. Starting Training & Evaluation Loop ---
+Epoch     1/2000 | Train [Loss: 17.5915, Worst: 31.8556, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 17.3949, Worst: 31.8569, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+Warning: Analysis functions (e.g., analyze_gradient_gram_matrix) might also cause OOM.
+         Consider implementing mini-batching in analysis.py if OOM occurs here.
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 801, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 757, in main
+    analysis.run_all_analyses(
+  File "/home/utsu/sp_v2/analysis.py", line 415, in run_all_analyses
+    grad_gram_train_results, group_grads_train = analyze_gradient_gram_matrix(
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/analysis.py", line 52, in analyze_gradient_gram_matrix
+    scores, _ = model(X_group.to(device))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1881, in _call_impl
+    return inner()
+           ^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1829, in inner
+    result = forward_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/model.py", line 329, in forward
+    output_scalar = self.vit(x)
+                    ^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torchvision/models/vision_transformer.py", line 298, in forward
+    x = self.encoder(x)
+        ^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torchvision/models/vision_transformer.py", line 157, in forward
+    return self.ln(self.layers(self.dropout(input)))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torchvision/models/vision_transformer.py", line 113, in forward
+    x, _ = self.self_attention(x, x, x, need_weights=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/activation.py", line 1488, in forward
+    attn_output, attn_output_weights = F.multi_head_attention_forward(
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/functional.py", line 6307, in multi_head_attention_forward
+    q, k, v = _in_projection_packed(query, key, value, in_proj_weight, in_proj_bias)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/functional.py", line 5699, in _in_projection_packed
+    proj = linear(q, w, b)
+           ^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 5.92 GiB. GPU 0 has a total capacity of 15.77 GiB of which 5.09 GiB is free. Process 3884627 has 10.68 GiB memory in use. Of the allocated memory 10.21 GiB is allocated by PyTorch, and 100.92 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

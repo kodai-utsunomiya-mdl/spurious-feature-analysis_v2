@@ -1,0 +1,75 @@
+wandb is enabled and initialized.
+Results will be saved to: results/WB_mf_gradient_basis_2025-10-28_06-02-07
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+Extracting data/waterbirds_v1.0/archive.zip...
+Extraction complete.
+
+Displaying and saving 10 sample images from the WaterBirds train set...
+Sample images saved to results/WB_mf_gradient_basis_2025-10-28_06-02-07/dataset_samples.png
+
+--- Train Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :  1057 samples
+Waterbird on Land (y=+1, a=-1)     :    56 samples
+Landbird on Water (y=-1, a=+1)     :   184 samples
+Landbird on Land (y=-1, a=-1)      :  3498 samples
+Total                              :  4795 samples
+
+
+--- Test Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :   642 samples
+Waterbird on Land (y=+1, a=-1)     :   642 samples
+Landbird on Water (y=-1, a=+1)     :  2255 samples
+Landbird on Land (y=-1, a=-1)      :  2255 samples
+Total                              :  5794 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+
+Applying manual parametrization for 'mf'...
+        - Input Dim (d): 150528, Hidden Dim (n): 4096, Base LR (η): 0.07
+        - Input Layer (W^1):        Init Var = 1.00, LR = 2.87e+02
+        - Output Layer (W^L+1): Init Var = 1.00, LR = 2.87e+02
+
+--- 3. Starting Training & Evaluation Loop ---
+Epoch     1/20000 | Train [Loss: 0.9622, Worst: 1.0772, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 0.9602, Worst: 1.0763, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT GRAM MATRIX on Test data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Test data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Test data...
+========================= END OF ANALYSIS @ EPOCH 1 ===========================
+
+Epoch     2/20000 | Train [Loss: 0.9189, Worst: 1.1749, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 0.9143, Worst: 1.1750, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 2 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT GRAM MATRIX on Test data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 233, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 186, in main
+    analysis.run_all_analyses(
+  File "/home/utsu/sp_v2/analysis.py", line 459, in run_all_analyses
+    basis_vectors_train = analyze_gradient_basis(group_grads_train, optimizer_params, "Train").get('vectors')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/analysis.py", line 129, in analyze_gradient_basis
+    v_inv = [np.zeros_like(g) for g in first_valid_grad_list]
+             ^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/numpy/_core/numeric.py", line 167, in zeros_like
+    multiarray.copyto(res, z, casting='unsafe')
+KeyboardInterrupt

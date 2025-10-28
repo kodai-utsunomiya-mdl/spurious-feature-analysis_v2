@@ -1,0 +1,24 @@
+2025-10-28 10:26:16,556 INFO    MainThread:1641 [wandb_setup.py:_flush():81] Current SDK version is 0.22.2
+2025-10-28 10:26:16,557 INFO    MainThread:1641 [wandb_setup.py:_flush():81] Configure stats pid to 1641
+2025-10-28 10:26:16,557 INFO    MainThread:1641 [wandb_setup.py:_flush():81] Loading settings from /home/utsu/.config/wandb/settings
+2025-10-28 10:26:16,557 INFO    MainThread:1641 [wandb_setup.py:_flush():81] Loading settings from /home/utsu/sp_v2/wandb/settings
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_init.py:setup_run_log_directory():705] Logging user logs to /home/utsu/sp_v2/wandb/run-20251028_102616-74x48kzr/logs/debug.log
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_init.py:setup_run_log_directory():706] Logging internal logs to /home/utsu/sp_v2/wandb/run-20251028_102616-74x48kzr/logs/debug-internal.log
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_init.py:init():832] calling init triggers
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_init.py:init():837] wandb.init called with sweep_config: {}
+config: {'experiment_name': 'cm_gradient_basis', 'dataset_name': 'ColoredMNIST', 'loss_function': 'mse', 'activation_function': 'relu', 'initialization_method': 'NTP_two_layer', 'use_skip_connections': False, 'device': 'cuda', 'num_train_samples': 50000, 'num_test_samples': 9000, 'train_correlation': 0.8, 'train_label_marginal': 0.0, 'train_attribute_marginal': 0.0, 'test_correlation': 0.0, 'test_label_marginal': 0.0, 'test_attribute_marginal': 0.0, 'num_hidden_layers': 1, 'hidden_dim': 4096, 'epochs': 20000, 'batch_size': 50000, 'optimizer': 'SGD', 'learning_rate': 0.1, 'momentum': 0.0, 'fix_final_layer': False, 'debias_method': 'None', 'dro_eta_q': 0.01, 'gradient_gram_analysis_epochs': None, 'gradient_gram_spectrum_analysis_epochs': None, 'gradient_norm_ratio_analysis_epochs': None, 'gradient_basis_analysis_epochs': None, 'proposition1_terms_analysis_epochs': None, 'proposition1_terms': {'group_pairs': [[[-1, 1], [-1, -1]], [[1, -1], [1, 1]]]}, 'gradient_norm_ratio_config': {'group_pairs': [[[-1, -1], [-1, 1]], [[1, 1], [1, -1]]]}, 'analysis_target': 'train', 'jacobian_num_samples': 100, 'show_and_save_samples': True, 'analyze_gradient_gram': False, 'analyze_jacobian_norm': False, 'analyze_gradient_gram_spectrum': False, 'analyze_gradient_norm_ratio': False, 'analyze_gradient_basis': True, 'analyze_proposition1_terms': True, 'wandb': {'enable': True, 'project': 'sp_exp_gram_basis', 'entity': 'mdl-tsukuba'}, '_wandb': {}}
+2025-10-28 10:26:16,558 INFO    MainThread:1641 [wandb_init.py:init():880] starting backend
+2025-10-28 10:26:16,770 INFO    MainThread:1641 [wandb_init.py:init():883] sending inform_init request
+2025-10-28 10:26:16,779 INFO    MainThread:1641 [wandb_init.py:init():891] backend started and connected
+2025-10-28 10:26:16,781 INFO    MainThread:1641 [wandb_init.py:init():961] updated telemetry
+2025-10-28 10:26:16,797 INFO    MainThread:1641 [wandb_init.py:init():985] communicating run to backend with 90.0 second timeout
+2025-10-28 10:26:17,431 INFO    MainThread:1641 [wandb_init.py:init():1036] starting run threads in backend
+2025-10-28 10:26:17,633 INFO    MainThread:1641 [wandb_run.py:_console_start():2509] atexit reg
+2025-10-28 10:26:17,633 INFO    MainThread:1641 [wandb_run.py:_redirect():2357] redirect: wrap_raw
+2025-10-28 10:26:17,633 INFO    MainThread:1641 [wandb_run.py:_redirect():2426] Wrapping output streams.
+2025-10-28 10:26:17,634 INFO    MainThread:1641 [wandb_run.py:_redirect():2449] Redirects installed.
+2025-10-28 10:26:17,639 INFO    MainThread:1641 [wandb_init.py:init():1076] run started, returning control to user process
+2025-10-28 10:26:19,157 INFO    MainThread:1641 [wandb_watch.py:_watch():68] Watching
+2025-10-28 10:32:55,267 INFO    wandb-AsyncioManager-main:1641 [service_client.py:_forward_responses():80] Reached EOF.
+2025-10-28 10:32:55,267 INFO    wandb-AsyncioManager-main:1641 [mailbox.py:close():137] Closing mailbox, abandoning 1 handles.

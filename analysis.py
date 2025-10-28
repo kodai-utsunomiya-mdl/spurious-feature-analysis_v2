@@ -475,3 +475,4 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
         if analysis_target in ['test', 'both']:
             histories['jacobian_norm_test'][epoch] = analyze_jacobian_norms(
                 model, X_test, y_test, a_test, config['device'], config['jacobian_num_samples'], "Test")
+

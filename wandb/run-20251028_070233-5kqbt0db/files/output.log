@@ -1,0 +1,21 @@
+wandb is enabled and initialized.
+Results will be saved to: results/cm_mf_gradient_basis_2025-10-28_07-02-34
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+Preparing Colored MNIST for train set...
+  Target Stats: N=40000, E[Y]=0.0, E[A]=0.0, Cov(Y,A)=0.8
+Preparing Colored MNIST for test set...
+  Target Stats: N=10000, E[Y]=0.0, E[A]=0.0, Cov(Y,A)=0.0
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 248, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 66, in main
+    X_test, y_test, a_test = data_loader.get_colored_mnist(
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/data_loader.py", line 156, in get_colored_mnist
+    return colorize_mnist(images, targets, num_samples, label_marginal, attribute_marginal, correlation)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/data_loader.py", line 87, in colorize_mnist
+    raise ValueError(f"Cannot sample {N_pos_target} (Y=+1) samples. Only {len(all_indices_y_pos)} available in the source dataset.")
+ValueError: Cannot sample 5000 (Y=+1) samples. Only 4861 available in the source dataset.

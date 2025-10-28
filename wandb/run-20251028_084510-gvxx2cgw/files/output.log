@@ -1,0 +1,91 @@
+wandb is enabled and initialized.
+Results will be saved to: results/wb_cnn_gradient_basis_2025-10-28_08-45-11
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+
+Displaying and saving 10 sample images from the WaterBirds train set...
+Sample images saved to results/wb_cnn_gradient_basis_2025-10-28_08-45-11/dataset_samples.png
+
+--- SCC-GF (Debias Method) Enabled ---
+  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.
+  Calculated statistics and weights:
+  E[Y] (y_bar) = -0.5358
+  E[A] (a_bar) = -0.4824
+  w_g(-1.0, -1.0) = 0.569146
+  w_g(-1.0, 1.0) = 0.198737
+  w_g(1.0, -1.0) = 0.172042
+  w_g(1.0, 1.0) = 0.060074
+
+--- Train Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :  1057 samples
+Waterbird on Land (y=+1, a=-1)     :    56 samples
+Landbird on Water (y=-1, a=+1)     :   184 samples
+Landbird on Land (y=-1, a=-1)      :  3498 samples
+Total                              :  4795 samples
+
+
+--- Test Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :   642 samples
+Waterbird on Land (y=+1, a=-1)     :   642 samples
+Landbird on Water (y=-1, a=+1)     :  2255 samples
+Landbird on Land (y=-1, a=-1)      :  2255 samples
+Total                              :  5794 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+Using ResNet18Classifier model for WaterBirds.
+
+Using standard optimizer setup (no manual parametrization).
+
+--- 3. Starting Training & Evaluation Loop ---
+Epoch     1/20000 | Train [Loss: 5.6953, Worst: 14.2023, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 5.5804, Worst: 14.1901, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 1 ===========================
+
+Epoch     2/20000 | Train [Loss: 41384.1641, Worst: 45321.3633, Acc: 0.2321, Worst: 0.0000] | Test [Loss: 39105.7695, Worst: 44637.8320, Acc: 0.2216, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 2 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 2 ===========================
+
+Epoch     3/20000 | Train [Loss: 24597430272.0000, Worst: 25222713344.0000, Acc: 0.7679, Worst: 0.0000] | Test [Loss: 24218294272.0000, Worst: 25262714880.0000, Acc: 0.7784, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 3 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+
+Analyzing GRADIENT BASIS VECTORS on Train data...
+
+Analyzing PROPOSITION 1 TERMS on Train data...
+========================= END OF ANALYSIS @ EPOCH 3 ===========================
+
+Epoch     4/20000 | Train [Loss: 369451134809338710585963358191616.0000, Worst: 382614460732069980394034470846464.0000, Acc: 0.2321, Worst: 0.0000] | Test [Loss: 362355417246659821522775940530176.0000, Worst: 384771571250524755523046194806784.0000, Acc: 0.2216, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 4 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 801, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 754, in main
+    analysis.run_all_analyses(
+  File "/home/utsu/sp_v2/analysis.py", line 935, in run_all_analyses
+    grad_gram_train_results, group_grads_train = analyze_gradient_gram_matrix(
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/analysis.py", line 560, in analyze_gradient_gram_matrix
+    X_mini, y_mini = X_mini.to(device), y_mini.to(device)
+                     ^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

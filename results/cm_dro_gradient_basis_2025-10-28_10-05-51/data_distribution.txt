@@ -1,0 +1,16 @@
+
+--- Train Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         : 22500 samples
+Digit>=5, Green (y=+1, a=-1)       :  2500 samples
+Digit<5, Red (y=-1, a=+1)          :  2500 samples
+Digit<5, Green (y=-1, a=-1)        : 22500 samples
+Total                              : 50000 samples
+
+
+--- Test Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         :  2250 samples
+Digit>=5, Green (y=+1, a=-1)       :  2250 samples
+Digit<5, Red (y=-1, a=+1)          :  2250 samples
+Digit<5, Green (y=-1, a=-1)        :  2250 samples
+Total                              :  9000 samples
+

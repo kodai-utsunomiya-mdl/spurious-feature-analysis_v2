@@ -1,0 +1,95 @@
+# sp/config.yaml
+
+# ---------------------------------
+# 実験の基本設定
+# ---------------------------------
+experiment_name: "cm_mf_gradient_basis"
+dataset_name: "ColoredMNIST"  # "ColoredMNIST" or "WaterBirds"
+loss_function: "mse"          # "logistic" or "mse"
+activation_function: "relu"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
+initialization_method: "mf"  # "SP", "NTP", "muP", "mf" (mfは隠れ層1つのときのみ有効)
+use_skip_connections: false
+device: "cuda"                # "cuda" or "cpu"
+
+# ---------------------------------
+# データセット設定
+# ---------------------------------
+num_train_samples: 50000
+num_test_samples: 9000
+# ColoredMNIST固有の設定
+train_correlation: 0.8
+train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
+train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
+test_correlation: 0.0
+test_label_marginal: 0.0        # E[Y] (テストセット)
+test_attribute_marginal: 0.0    # E[A] (テストセット)
+
+# ---------------------------------
+# モデル設定
+# ---------------------------------
+num_hidden_layers: 1
+hidden_dim: 4096
+
+# ---------------------------------
+# 学習設定
+# ---------------------------------
+epochs: 20000
+batch_size: 50000   # ERMの場合のバッチサイズ (SCC-GFでは無視されます)
+optimizer: "SGD"    # "SGD" or "Adam"
+learning_rate: 0.1
+momentum: 0.0
+fix_final_layer: false  # trueにすると最終層の重みを固定
+
+# --- デバイアス手法の選択 ---
+debias_method: "IW_uniform" # "None" (ERM) or "IW_uniform"
+
+# ------------------------------------------
+# 解析・可視化設定
+# ------------------------------------------
+# 各種分析の実行エポック設定 (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
+gradient_gram_analysis_epochs:
+gradient_gram_spectrum_analysis_epochs:
+gradient_norm_ratio_analysis_epochs:
+gradient_basis_analysis_epochs:
+proposition1_terms_analysis_epochs:
+
+# 命題1の分析設定
+proposition1_terms:
+  # 分析対象とするグループペア [g1, g2] のリスト
+  # g = (y, a). 
+  # 例: [[-1, -1], [-1, 1]] は g1=(-1,-1), g2=(-1,1) のペア
+  group_pairs:
+    - [[-1, 1], [-1, -1]]  # 少数派・多数派
+    - [[ 1,  -1], [ 1, 1]]
+
+# 勾配ノルム比の分析設定
+gradient_norm_ratio_config:
+  # 分析対象とするグループペア [g_numerator, g_denominator] のリスト
+  # ||∇g_numerator|| / ||∇g_denominator|| の比を計算
+  # g = (y, a).
+  group_pairs:
+    - [[-1, -1], [-1, 1]]  # 多数派(y=-1) / 少数派(y=-1)
+    - [[ 1,  1], [ 1, -1]]  # 多数派(y= 1) / 少数派(y= 1)
+
+# 解析対象データセット ('train', 'test', 'both')
+analysis_target: 'train'
+jacobian_num_samples: 100    # ヤコビアンを計算するためのグループから使用するサンプル数
+show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
+
+# ---------------------------------
+# 解析の有効/無効フラグ
+# ---------------------------------
+analyze_gradient_gram: false
+analyze_jacobian_norm: false
+analyze_gradient_gram_spectrum: false
+analyze_gradient_norm_ratio: false
+analyze_gradient_basis: true
+analyze_proposition1_terms: true
+
+# ---------------------------------
+# wandb設定
+# ---------------------------------
+wandb:
+  enable: true
+  project: "sp_exp_gram_basis"
+  entity: "mdl-tsukuba"

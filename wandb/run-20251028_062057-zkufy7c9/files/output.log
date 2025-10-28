@@ -1,0 +1,90 @@
+wandb is enabled and initialized.
+Results will be saved to: results/WB_mf_gradient_basis_2025-10-28_06-20-58
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+Preparing Colored MNIST for train set...
+100%|██████████████████████████████████████████████████████████████████████████████| 9.91M/9.91M [00:01<00:00, 6.25MB/s]
+100%|███████████████████████████████████████████████████████████████████████████████| 28.9k/28.9k [00:00<00:00, 173kB/s]
+100%|██████████████████████████████████████████████████████████████████████████████| 1.65M/1.65M [00:01<00:00, 1.58MB/s]
+100%|██████████████████████████████████████████████████████████████████████████████| 4.54k/4.54k [00:00<00:00, 6.25MB/s]
+Preparing Colored MNIST for test set...
+
+Displaying and saving 10 sample images from the ColoredMNIST train set...
+Sample images saved to results/WB_mf_gradient_basis_2025-10-28_06-20-58/dataset_samples.png
+
+--- Train Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         : 22024 samples
+Digit>=5, Green (y=+1, a=-1)       :  2438 samples
+Digit<5, Red (y=-1, a=+1)          :  2511 samples
+Digit<5, Green (y=-1, a=-1)        : 23027 samples
+Total                              : 50000 samples
+
+
+--- Test Set Group Distribution (ColoredMNIST) ---
+Digit>=5, Red (y=+1, a=+1)         :  2442 samples
+Digit>=5, Green (y=+1, a=-1)       :  2419 samples
+Digit<5, Red (y=-1, a=+1)          :  2579 samples
+Digit<5, Green (y=-1, a=-1)        :  2560 samples
+Total                              : 10000 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+
+Applying manual parametrization for 'mf'...
+        - Input Dim (d): 2352, Hidden Dim (n): 4096, Base LR (η): 0.1
+        - Input Layer (W^1):        Init Var = 1.00, LR = 4.10e+02
+        - Output Layer (W^L+1): Init Var = 1.00, LR = 4.10e+02
+
+--- 3. Starting Training & Evaluation Loop ---
+Epoch     1/20000 | Train [Loss: 0.9821, Worst: 1.0232, Acc: 0.8149, Worst: 0.0898] | Test [Loss: 0.9954, Worst: 1.0223, Acc: 0.5689, Worst: 0.0914]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 1 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 1 ===========================
+
+Epoch     2/20000 | Train [Loss: 0.9630, Worst: 1.0441, Acc: 0.8954, Worst: 0.0119] | Test [Loss: 0.9931, Worst: 1.0433, Acc: 0.5285, Worst: 0.0103]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 2 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 2 ===========================
+
+Epoch     3/20000 | Train [Loss: 0.9443, Worst: 1.0652, Acc: 0.9008, Worst: 0.0012] | Test [Loss: 0.9912, Worst: 1.0644, Acc: 0.5080, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 3 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 3 ===========================
+
+Epoch     4/20000 | Train [Loss: 0.9258, Worst: 1.0865, Acc: 0.9010, Worst: 0.0000] | Test [Loss: 0.9894, Worst: 1.0858, Acc: 0.5021, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 4 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 4 ===========================
+
+Epoch     5/20000 | Train [Loss: 0.9074, Worst: 1.1083, Acc: 0.9010, Worst: 0.0000] | Test [Loss: 0.9879, Worst: 1.1076, Acc: 0.5011, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 5 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 5 ===========================
+
+Epoch     6/20000 | Train [Loss: 0.8891, Worst: 1.1305, Acc: 0.9010, Worst: 0.0000] | Test [Loss: 0.9866, Worst: 1.1299, Acc: 0.5006, Worst: 0.0000]
+
+========================= CHECKPOINT ANALYSIS @ EPOCH 6 =========================
+
+Analyzing GRADIENT GRAM MATRIX on Train data...
+========================= END OF ANALYSIS @ EPOCH 6 ===========================
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 233, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 124, in main
+    train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, config['loss_function'])
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/utils.py", line 93, in evaluate_model
+    scores, _ = model(X_data.to(device))
+                      ^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

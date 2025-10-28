@@ -1,0 +1,11 @@
+{"time":"2025-10-28T08:42:16.264963152Z","level":"INFO","msg":"stream: starting","core version":"0.22.2"}
+{"time":"2025-10-28T08:42:16.597695827Z","level":"INFO","msg":"stream: created new stream","id":"z9npt42b"}
+{"time":"2025-10-28T08:42:16.597869648Z","level":"INFO","msg":"handler: started","stream_id":"z9npt42b"}
+{"time":"2025-10-28T08:42:16.598919649Z","level":"INFO","msg":"stream: started","id":"z9npt42b"}
+{"time":"2025-10-28T08:42:16.598990693Z","level":"INFO","msg":"writer: started","stream_id":"z9npt42b"}
+{"time":"2025-10-28T08:42:16.599016998Z","level":"INFO","msg":"sender: started","stream_id":"z9npt42b"}
+{"time":"2025-10-28T08:43:58.274593294Z","level":"INFO","msg":"stream: closing","id":"z9npt42b"}
+{"time":"2025-10-28T08:43:59.616828008Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-10-28T08:44:00.189149944Z","level":"INFO","msg":"handler: closed","stream_id":"z9npt42b"}
+{"time":"2025-10-28T08:44:00.190018447Z","level":"INFO","msg":"sender: closed","stream_id":"z9npt42b"}
+{"time":"2025-10-28T08:44:00.190104406Z","level":"INFO","msg":"stream: closed","id":"z9npt42b"}

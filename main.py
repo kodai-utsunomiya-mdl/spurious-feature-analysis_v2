@@ -20,10 +20,24 @@ import model as model_module
 import analysis
 import plotting
 
+# --- ヘルパー関数 ---
+def get_loss_function(scores, y_batch, loss_type='mse'):
+    """ 損失関数を計算 """
+    if loss_type == 'logistic':
+        return F.softplus(-y_batch * scores).mean()
+    elif loss_type == 'mse':
+        return F.mse_loss(scores, y_batch)
+    else:
+        raise ValueError(f"Unknown loss_function: {loss_type}")
+
 def main(config_path='config.yaml'):
     # 1. 設定ファイルの読み込み
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
+
+    # --- debias_method の読み込み ---
+    debias_method = config.get('debias_method', 'None')
+    loss_function_name = config['loss_function']
 
     # wandbの初期化
     if config.get('wandb', {}).get('enable', False):
@@ -50,12 +64,27 @@ def main(config_path='config.yaml'):
     print("\n--- 1. Preparing Dataset ---")
     if config['dataset_name'] == 'ColoredMNIST':
         image_size = 28
+
+        train_y_bar = config.get('train_label_marginal', 0.0)
+        train_a_bar = config.get('train_attribute_marginal', 0.0)
+        test_y_bar = config.get('test_label_marginal', 0.0)
+        test_a_bar = config.get('test_attribute_marginal', 0.0)
+
         X_train, y_train, a_train = data_loader.get_colored_mnist(
-            num_samples=config['num_train_samples'], correlation=config['train_correlation'], train=True
+            num_samples=config['num_train_samples'],
+            correlation=config['train_correlation'],
+            label_marginal=train_y_bar,
+            attribute_marginal=train_a_bar,
+            train=True
         )
         X_test, y_test, a_test = data_loader.get_colored_mnist(
-            num_samples=config['num_test_samples'], correlation=config['test_correlation'], train=False
+            num_samples=config['num_test_samples'],
+            correlation=config['test_correlation'],
+            label_marginal=test_y_bar,
+            attribute_marginal=test_a_bar,
+            train=False
         )
+
     elif config['dataset_name'] == 'WaterBirds':
         image_size = 224
         X_train, y_train, a_train, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
@@ -69,7 +98,48 @@ def main(config_path='config.yaml'):
 
     X_train = utils.l2_normalize_images(X_train)
     X_test = utils.l2_normalize_images(X_test)
-    train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=config['batch_size'], shuffle=True)
+
+    # --- グループのリストを定義 ---
+    group_keys = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)]
+
+    # --- バイアス除去手法のための設定 ---
+    static_weights = None
+    dro_q_weights = None
+    
+    if debias_method == 'IW_uniform':
+        print("\n--- Importance Weighting (Uniform Target) Enabled (Equivalent to v_inv) ---")
+        print(f"  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
+        print("  Removing both marginal bias (Term II) and spurious correlation (Term III).")
+
+        # 理論に基づき，重みを一律 1/4 (0.25) に設定 (v_inv の勾配流)
+        static_weights = {g: 0.25 for g in group_keys}
+
+        print("  Using static weights for uniform target distribution (w_g = 0.25 for all):")
+        for g, w in static_weights.items():
+            print(f"  w_g{g} = {w:.6f}")
+        
+        train_loader = None
+        
+    elif debias_method == 'GroupDRO':
+        print("\n--- Group DRO Enabled ---")
+        print(f"  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
+        
+        # 動的重み q を一様分布で初期化
+        dro_q_weights = torch.ones(len(group_keys), device=device) / len(group_keys)
+        
+        print(f"  Using dynamic weights 'q' initialized to: {dro_q_weights.cpu().numpy()}")
+        print(f"  Group weight step size (eta_q): {config['dro_eta_q']}")
+        
+        train_loader = None
+
+    elif debias_method == 'None':
+        # 通常のERM学習
+        print(f"\n--- ERM (Debias Method: None) Enabled ---")
+        print(f"  Using batch_size: {config['batch_size']}")
+        train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=config['batch_size'], shuffle=True)
+    
+    else:
+        raise ValueError(f"Unknown debias_method: {debias_method}. Must be 'None', 'IW_uniform', or 'GroupDRO'.")
 
     utils.display_group_distribution(y_train, a_train, "Train Set", config['dataset_name'], result_dir)
     utils.display_group_distribution(y_test, a_test, "Test Set", config['dataset_name'], result_dir)
@@ -113,16 +183,123 @@ def main(config_path='config.yaml'):
 
     for epoch in range(config['epochs']):
         model.train()
-        for X_batch, y_batch in train_loader:
-            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+        # --- 学習ステップの分岐 ---
+        if debias_method == 'IW_uniform':
+            # --- IW (Uniform Target) の学習ステップ (フルバッチ・グループ別勾配) ---
             optimizer.zero_grad()
-            scores, _ = model(X_batch)
-            loss = F.softplus(-y_batch * scores).mean() if config['loss_function'] == 'logistic' else F.mse_loss(scores, y_batch)
-            loss.backward()
+            group_grads_list = {} # パラメータごとの勾配リストを格納
+
+            # 1. グループごとに勾配を計算
+            for g in group_keys:
+                y_val, a_val = g
+                mask = (y_train == y_val) & (a_train == a_val)
+                X_g, y_g = X_train[mask].to(device), y_train[mask].to(device)
+
+                if len(X_g) == 0:
+                    continue
+
+                # 勾配計算
+                scores_g, _ = model(X_g)
+                loss_g = get_loss_function(scores_g, y_g, loss_function_name)
+                loss_g.backward()
+
+                # 勾配をリストとして保存 (cloneしないと上書きされる)
+                group_grads_list[g] = [p.grad.clone() for p in model.parameters() if p.grad is not None]
+
+                # 次のグループのために勾配をリセット
+                optimizer.zero_grad()
+
+            # 2. 重み付き勾配を集約 (p.grad に設定)
+            #    (static_weights には 0.25 が入っている)
+            param_idx = 0
+            for param in model.parameters():
+                if param.requires_grad:
+                    # このパラメータの最終的な勾配
+                    debiased_grad = torch.zeros_like(param)
+                    for g, w_g in static_weights.items(): # static_weights を使用
+                        if g in group_grads_list:
+                            # 対応するグループの勾配リストから勾配を取得
+                            grad_g_param = group_grads_list[g][param_idx]
+                            debiased_grad += w_g * grad_g_param.to(device)
+
+                    param.grad = debiased_grad
+                    param_idx += 1
+
+            # 3. パラメータ更新
             optimizer.step()
 
-        train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, config['loss_function'])
-        test_metrics = utils.evaluate_model(model, X_test, y_test, a_test, device, config['loss_function'])
+        elif debias_method == 'GroupDRO':
+            # --- Group DRO 学習ステップ (フルバッチ・グループ別勾配) ---
+            optimizer.zero_grad()
+            group_grads_list = {} # パラメータごとの勾配リスト
+            group_losses_tensor = torch.zeros(len(group_keys), device=device)
+
+            # 1. グループごとに勾配と損失を計算
+            for i, g in enumerate(group_keys):
+                y_val, a_val = g
+                mask = (y_train == y_val) & (a_train == a_val)
+                X_g, y_g = X_train[mask].to(device), y_train[mask].to(device)
+
+                if len(X_g) == 0:
+                    continue
+
+                # 勾配計算
+                scores_g, _ = model(X_g)
+                loss_g = get_loss_function(scores_g, y_g, loss_function_name)
+                
+                group_losses_tensor[i] = loss_g.detach() # 損失を保存
+                
+                loss_g.backward()
+
+                # 勾配をリストとして保存
+                group_grads_list[g] = [p.grad.clone() for p in model.parameters() if p.grad is not None]
+                optimizer.zero_grad() # 次のグループのために勾配をリセット
+
+            # 2. グループ重み q を更新 (Exponentiated Gradient Ascent)
+            with torch.no_grad():
+                dro_eta_q = config['dro_eta_q']
+                # q_t+1 = q_t * exp(eta * L_t)
+                dro_q_weights = dro_q_weights * torch.exp(dro_eta_q * group_losses_tensor)
+                # 正規化
+                dro_q_weights = dro_q_weights / dro_q_weights.sum()
+            
+            # 100エポックごと，または最初のエポックで重みをログ出力
+            if (epoch + 1) % 100 == 0 or epoch == 0:
+                print(f"  Epoch {epoch+1} GroupDRO weights q: {np.array2string(dro_q_weights.cpu().numpy(), precision=4)}")
+
+
+            # 3. 重み付き勾配を集約 (p.grad に設定)
+            param_idx = 0
+            for param in model.parameters():
+                if param.requires_grad:
+                    debiased_grad = torch.zeros_like(param)
+                    for i, g in enumerate(group_keys):
+                        w_g = dro_q_weights[i] # 動的な重みを使用
+                        if g in group_grads_list:
+                            grad_g_param = group_grads_list[g][param_idx]
+                            debiased_grad += w_g * grad_g_param.to(device)
+                    
+                    param.grad = debiased_grad
+                    param_idx += 1
+
+            # 4. パラメータ更新
+            optimizer.step()
+
+        elif debias_method == 'None':
+            # --- 通常のERM学習ステップ (ミニバッチ) ---
+            for X_batch, y_batch in train_loader:
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+                optimizer.zero_grad()
+                scores, _ = model(X_batch)
+                loss = get_loss_function(scores, y_batch, loss_function_name)
+                loss.backward()
+                optimizer.step()
+        # --- 分岐終了 ---
+
+        # --- 評価 ---
+        train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name)
+        test_metrics = utils.evaluate_model(model, X_test, y_test, a_test, device, loss_function_name)
         for key_base in history.keys():
             if key_base.startswith('train_'):
                 history[key_base].append(train_metrics[key_base.replace('train_', '')])
@@ -143,6 +320,10 @@ def main(config_path='config.yaml'):
                 'test_avg_acc': test_metrics['avg_acc'],
                 'test_worst_acc': test_metrics['worst_acc'],
             }
+            if debias_method == 'GroupDRO':
+                for i, g in enumerate(group_keys):
+                    log_metrics[f'group_q_weight/q_g{g}'] = dro_q_weights[i].item()
+
             for i in range(4):
                 log_metrics[f'train_group_{i}_loss'] = train_metrics['group_losses'][i]
                 log_metrics[f'train_group_{i}_acc'] = train_metrics['group_accs'][i]
@@ -157,7 +338,7 @@ def main(config_path='config.yaml'):
             if not config.get(analysis_name, False):
                 return False
             epoch_list = config.get(epoch_list_name)
-            if epoch_list is None: # キーが存在しないか、値がNone（毎エポック実行）
+            if epoch_list is None: # キーが存在しないか，値がNone（毎エポック実行）
                 return True
             return current_epoch in epoch_list # リストが指定されている場合
 
@@ -166,8 +347,7 @@ def main(config_path='config.yaml'):
         run_grad_norm_ratio = should_run('analyze_gradient_norm_ratio', 'gradient_norm_ratio_analysis_epochs')
         run_grad_basis = should_run('analyze_gradient_basis', 'gradient_basis_analysis_epochs')
         run_prop1_terms = should_run('analyze_proposition1_terms', 'proposition1_terms_analysis_epochs')
-        
-        # run_general_analysis を除外
+
         run_any_analysis = run_grad_gram or run_grad_spectrum or run_grad_norm_ratio or run_grad_basis or run_prop1_terms
 
         if run_any_analysis:
@@ -175,7 +355,7 @@ def main(config_path='config.yaml'):
 
             # train_outputs, test_outputs は analysis.py で使われなくなった
             train_outputs, test_outputs = (None, None)
-            
+
             temp_config = config.copy()
             temp_config['analyze_gradient_gram'] = run_grad_gram
             temp_config['analyze_gradient_gram_spectrum'] = run_grad_spectrum
@@ -188,7 +368,7 @@ def main(config_path='config.yaml'):
                 X_train, y_train, a_train, X_test, y_test, a_test, analysis_histories,
                 optimizer.param_groups, history
             )
-            
+
             if config.get('wandb', {}).get('enable', False):
                 analysis_log_metrics = {}
                 for history_key, history_dict in analysis_histories.items():

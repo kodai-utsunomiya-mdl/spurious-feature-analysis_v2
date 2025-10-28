@@ -14,7 +14,7 @@ class MLP(nn.Module):
             num_hidden_layers (int): 隠れ層の数
             activation_fn (str): 活性化関数名 ('relu', 'gelu', 'tanh', 'identity')
             use_skip_connections (bool): Skip Connectionを使用するかどうかのフラグ
-            initialization_method (str): パラメータ化の手法 ('SP', 'NTP', 'muP', 'mf')
+            initialization_method (str): パラメータ化の手法 ('SP', 'NTP', 'muP', 'mf', 'NTP_two_layer')
         """
         super().__init__()
         if num_hidden_layers < 1:
@@ -79,6 +79,9 @@ class MLP(nn.Module):
         # 'mf' (mean-field) の場合，出力層で 1/n のスケーリングを適用
         if self.initialization_method == 'mf':
             output_scalar = output_scalar / float(self.hidden_dim)
+        # 'NTP_two_layer' の場合， 1/sqrt(n) のスケーリングを適用
+        elif self.initialization_method == 'NTP_two_layer':
+            output_scalar = output_scalar / np.sqrt(float(self.hidden_dim))
 
         outputs['logit'] = output_scalar
 
@@ -88,7 +91,7 @@ def apply_manual_parametrization(model, method, base_lr, hidden_dim, input_dim, 
     """
     Args:
         model (nn.Module): 対象のMLPモデル
-        method (str): 'SP', 'NTP', 'muP', 'mf'のいずれか
+        method (str): 'SP', 'NTP', 'muP', 'mf', 'NTP_two_layer' のいずれか
         base_lr (float): 基本学習率 (η)
         hidden_dim (int): 隠れ層の幅 (n)
         input_dim (int): 入力次元 (d)
@@ -106,8 +109,9 @@ def apply_manual_parametrization(model, method, base_lr, hidden_dim, input_dim, 
     if fix_final_layer:
         print("        - Final layer weights are FROZEN.")
 
-    if method == 'mf' and len(model.layers) != 1:
-        raise ValueError("The 'mf' (mean-field) parametrization is only supported for models with exactly one hidden layer.")
+    # mf と NTP_two_layer は隠れ層1層のみサポート
+    if (method == 'mf' or method == 'NTP_two_layer') and len(model.layers) != 1:
+        raise ValueError(f"The '{method}' parametrization is only supported for models with exactly one hidden layer.")
 
 
     with torch.no_grad():
@@ -128,6 +132,9 @@ def apply_manual_parametrization(model, method, base_lr, hidden_dim, input_dim, 
         elif method == 'mf':
             init_var = const
             lr = base_lr * n
+        elif method == 'NTP_two_layer':
+            init_var = const
+            lr = base_lr
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -172,6 +179,9 @@ def apply_manual_parametrization(model, method, base_lr, hidden_dim, input_dim, 
         elif method == 'mf':
             init_var = const
             lr = base_lr * n
+        elif method == 'NTP_two_layer':
+            init_var = const
+            lr = base_lr
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -180,13 +190,13 @@ def apply_manual_parametrization(model, method, base_lr, hidden_dim, input_dim, 
         
         if not fix_final_layer:
             optimizer_param_groups.append({'params': output_layer.weight, 'lr': lr})
-            if method == 'mf':
+            if method == 'mf' or method == 'NTP_two_layer':
                 print(f"        - Output Layer (W^L+1): Init Var = {init_var:.2f}, LR = {lr:.2e}")
             else:
                 print(f"        - Output Layer (W^L+1): Init Var = 1/{int(n*n) if method=='muP' else int(n)}, LR = {lr:.2e}")
         else:
             output_layer.weight.requires_grad = False
-            if method == 'mf':
+            if method == 'mf' or method == 'NTP_two_layer':
                 print(f"        - Output Layer (W^L+1): Init Var = {init_var:.2f}, LR = 0.00 (Fixed)")
             else:
                 print(f"        - Output Layer (W^L+1): Init Var = 1/{int(n*n) if method=='muP' else int(n)}, LR = 0.00 (Fixed)")

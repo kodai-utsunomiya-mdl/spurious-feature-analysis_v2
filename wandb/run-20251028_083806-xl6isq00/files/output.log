@@ -1,0 +1,84 @@
+wandb is enabled and initialized.
+Results will be saved to: results/wb_cnn_gradient_basis_2025-10-28_08-38-07
+Using device: cuda
+
+--- 1. Preparing Dataset ---
+
+Displaying and saving 10 sample images from the WaterBirds train set...
+Sample images saved to results/wb_cnn_gradient_basis_2025-10-28_08-38-07/dataset_samples.png
+
+--- SCC-GF (Debias Method) Enabled ---
+  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.
+  Calculated statistics and weights:
+  E[Y] (y_bar) = -0.5358
+  E[A] (a_bar) = -0.4824
+  w_g(-1.0, -1.0) = 0.569146
+  w_g(-1.0, 1.0) = 0.198737
+  w_g(1.0, -1.0) = 0.172042
+  w_g(1.0, 1.0) = 0.060074
+
+--- Train Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :  1057 samples
+Waterbird on Land (y=+1, a=-1)     :    56 samples
+Landbird on Water (y=-1, a=+1)     :   184 samples
+Landbird on Land (y=-1, a=-1)      :  3498 samples
+Total                              :  4795 samples
+
+
+--- Test Set Group Distribution (WaterBirds) ---
+Waterbird on Water (y=+1, a=+1)    :   642 samples
+Waterbird on Land (y=+1, a=-1)     :   642 samples
+Landbird on Water (y=-1, a=+1)     :  2255 samples
+Landbird on Land (y=-1, a=-1)      :  2255 samples
+Total                              :  5794 samples
+
+
+--- 2. Setting up Model and Optimizer ---
+Using ResNet18Classifier model for WaterBirds.
+
+Using standard optimizer setup (no manual parametrization).
+
+--- 3. Starting Training & Evaluation Loop ---
+Traceback (most recent call last):
+  File "/home/utsu/sp_v2/main.py", line 772, in <module>
+    main(config_path='config.yaml')
+  File "/home/utsu/sp_v2/main.py", line 616, in main
+    scores_g, _ = model(X_g)
+                  ^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1881, in _call_impl
+    return inner()
+           ^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1829, in inner
+    result = forward_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/model.py", line 245, in forward
+    logits = self.backbone(x) # 出力は (Batch, 1)
+             ^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torchvision/models/resnet.py", line 285, in forward
+    return self._forward_impl(x)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torchvision/models/resnet.py", line 269, in _forward_impl
+    x = self.bn1(x)
+        ^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/modules/batchnorm.py", line 193, in forward
+    return F.batch_norm(
+           ^^^^^^^^^^^^^
+  File "/home/utsu/sp_v2/.venv/lib/python3.12/site-packages/torch/nn/functional.py", line 2813, in batch_norm
+    return torch.batch_norm(
+           ^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 10.46 GiB. GPU 0 has a total capacity of 15.77 GiB of which 2.92 GiB is free. Process 3892613 has 12.85 GiB memory in use. Of the allocated memory 12.46 GiB is allocated by PyTorch, and 24.06 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
