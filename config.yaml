@@ -55,6 +55,7 @@ gradient_gram_spectrum_analysis_epochs:
 gradient_norm_ratio_analysis_epochs:
 gradient_basis_analysis_epochs:
 proposition1_terms_analysis_epochs:
+jacobian_norm_analysis_epochs:
 
 # 命題1の分析設定
 proposition1_terms:
@@ -83,7 +84,7 @@ show_and_save_samples: true  # 実行時にデータセットのサンプル画�
 # 解析の有効/無効フラグ
 # ---------------------------------
 analyze_gradient_gram: false
-analyze_jacobian_norm: false
+analyze_jacobian_norm: true
 analyze_gradient_gram_spectrum: false
 analyze_gradient_norm_ratio: false
 analyze_gradient_basis: true

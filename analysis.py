@@ -9,11 +9,17 @@ import torch.nn.functional as F
 # ヤコビアン計算のヘルパー関数
 # ==============================================================================
 def get_model_jacobian(model, X_subset, device):
-    """モデルのヤコビアンの期待値を計算"""
+    """
+    モデルのヤコビアンの期待値を計算 (パラメータごとのリストとして)
+    """
     model.eval()
-    jacobians = []
+    jacobians_list = [] # サンプルごとの勾配リストを格納
     X_subset = X_subset.to(device)
     
+    # 勾配を持つパラメータの数を事前に取得
+    # (fix_final_layer=True などで requires_grad=False のパラメータを除外)
+    num_grad_params = sum(1 for p in model.parameters() if p.requires_grad)
+
     for i in range(len(X_subset)):
         x_i = X_subset[i:i+1]
         x_i.requires_grad_(True)
@@ -21,12 +27,38 @@ def get_model_jacobian(model, X_subset, device):
         y_pred, _ = model(x_i)
         
         # モデルの全パラメータに対する勾配を計算
-        grad_params = torch.autograd.grad(y_pred, model.parameters(), create_graph=True)
-        flat_grad = torch.cat([g.contiguous().view(-1) for g in grad_params])
-        jacobians.append(flat_grad.cpu().detach().numpy())
+        # allow_unused=True で requires_grad=False のパラメータを許容
+        grad_params = torch.autograd.grad(y_pred, model.parameters(), create_graph=True, allow_unused=True)
         
-    return np.mean(jacobians, axis=0)
+        # grad_params には None が含まれる可能性がある
+        grad_list = [g.cpu().detach().numpy() for g in grad_params if g is not None]
+        
+        # 勾配が計算されたパラメータ数と期待値が一致するか簡易チェック
+        if i == 0 and len(grad_list) != num_grad_params:
+            print(f"Warning: Number of gradients ({len(grad_list)}) does not match number of grad-requiring parameters ({num_grad_params}).")
 
+        if grad_list: # 何かしら勾配があれば
+            jacobians_list.append(grad_list)
+    
+    if not jacobians_list:
+        print("Warning: No Jacobian data collected.")
+        return None # サンプルが0か，勾配が全くない
+
+    # パラメータごとに平均を計算
+    num_params = len(jacobians_list[0])
+    avg_jacobian_list = []
+    for p_idx in range(num_params):
+        # p_idx番目のパラメータの勾配を全サンプルから集めて平均
+        # リストの長さが異なる場合に備えて安全にアクセス
+        valid_grads = [jac[p_idx] for jac in jacobians_list if len(jac) > p_idx]
+        if valid_grads:
+            avg_param_grad = np.mean(valid_grads, axis=0)
+            avg_jacobian_list.append(avg_param_grad)
+        
+    if len(avg_jacobian_list) != num_grad_params:
+         print(f"Warning: Final averaged Jacobian list length ({len(avg_jacobian_list)}) differs from expected ({num_grad_params}).")
+
+    return avg_jacobian_list # パラメータごとのNumpy配列のリスト
 
 
 # ==============================================================================
@@ -96,6 +128,9 @@ def _weighted_inner_product(v1_list, v2_list, optimizer_params):
     """
     2つのパラメータごと勾配リストのη-重み付き内積 <v1, v2>_η を計算
     """
+    if v1_list is None or v2_list is None:
+        return np.nan
+        
     dot_product = 0.0
     param_idx = 0
     # optimizer_params の順序は model.parameters() と一致していることを前提とする
@@ -109,6 +144,15 @@ def _weighted_inner_product(v1_list, v2_list, optimizer_params):
                 # <v1, v2>_η = sum_p η_p * (v1_p・v2_p)
                 dot_product += lr * np.dot(v1_p, v2_p)
             param_idx += 1
+    
+    if param_idx != len(v1_list) or param_idx != len(v2_list):
+        # `fix_final_layer` などで optimizer_params と grad_list の長さが
+        # 一致しない場合がある．param_idx は optimizer_params に基づく
+        # grad_list は model.parameters() からの勾配に基づく
+        # _weighted_inner_product は optimizer_params に含まれる
+        # パラメータのみの内積を計算するため，これで正しい．
+        pass
+
     return dot_product
 
 def analyze_gradient_basis(group_grads_list, optimizer_params, dataset_type):
@@ -137,6 +181,7 @@ def analyze_gradient_basis(group_grads_list, optimizer_params, dataset_type):
         grads_p_list = group_grads_list.get(g)
         if grads_p_list is not None:
             y, a = g
+            # first_valid_grad_list と長さが異なる場合がある (fix_layer)
             for i in range(len(grads_p_list)):
                 v_inv[i] += grads_p_list[i]
                 v_C[i]   += y * grads_p_list[i]
@@ -226,6 +271,10 @@ def analyze_proposition1_terms(group_grads_list, basis_vectors_list, optimizer_p
             continue
 
         # Δ∇_{2,1} = ∇g2 - ∇g1
+        # grad_g1 と grad_g2 の長さが一致することを期待
+        if len(grad_g1) != len(grad_g2):
+             print(f"Skipping pair {pair_name}: gradient list length mismatch.")
+             continue
         delta_nabla_21 = [g2 - g1 for g1, g2 in zip(grad_g1, grad_g2)]
 
         # --- 項(I) ---
@@ -255,16 +304,19 @@ def analyze_proposition1_terms(group_grads_list, basis_vectors_list, optimizer_p
 # ==============================================================================
 # ヤコビアンノルムの分析
 # ==============================================================================
-def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, dataset_type):
-    """グループごとのヤコビアンノルムと内積を計算"""
-    print(f"\nAnalyzing JACOBIAN NORMS on {dataset_type} data (using {num_samples} samples per group)...")
+def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, optimizer_params, dataset_type):
+    """
+    グループごとのヤコビアンのη-ノルムとη-内積，および
+    幾何学的中心ベクトル (Delta C, Delta L) のノルムとアラインメントを計算
+    """
+    print(f"\nAnalyzing JACOBIAN (η-weighted) NORMS on {dataset_type} data (using {num_samples} samples per group)...")
     group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-    group_jacobians = {}
+    group_jacobians_list = {}
 
     for y_val, a_val in group_keys:
         mask = (y_data == y_val) & (a_data == a_val)
         if mask.sum() == 0:
-            group_jacobians[(y_val, a_val)] = None
+            group_jacobians_list[(y_val, a_val)] = None
             continue
         
         X_group = X_data[mask]
@@ -275,25 +327,108 @@ def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, d
         else:
             X_subset = X_group
             
-        group_jacobians[(y_val, a_val)] = get_model_jacobian(model, X_subset, device)
+        group_jacobians_list[(y_val, a_val)] = get_model_jacobian(model, X_subset, device)
 
     jacobian_results = {}
-    # ノルムの計算
-    for (y, a), jacobian in group_jacobians.items():
+    group_norms_sq = {} # ノルムの2乗をキャッシュ
+
+    # --- 1. 元のヤコビアンノルム (η-ノルムで計算) ---
+    for (y, a), jac_list in group_jacobians_list.items():
         key_name = f"norm_G({y},{a})"
-        if jacobian is not None:
-            jacobian_results[key_name] = np.linalg.norm(jacobian)**2
+        if jac_list is not None:
+            # ||J||^2 = <J, J>_η
+            norm_sq = _weighted_inner_product(jac_list, jac_list, optimizer_params)
+            group_norms_sq[(y, a)] = norm_sq
+            jacobian_results[key_name] = norm_sq # 2乗のまま保存
         else:
+            group_norms_sq[(y, a)] = np.nan
             jacobian_results[key_name] = np.nan
 
-    # 内積の計算
+    # --- 2. 元のヤコビアン内積 (η-内積で計算) ---
     for (y1, a1), (y2, a2) in combinations(group_keys, 2):
-        jac1, jac2 = group_jacobians.get((y1, a1)), group_jacobians.get((y2, a2))
+        jac1_list = group_jacobians_list.get((y1, a1))
+        jac2_list = group_jacobians_list.get((y2, a2))
         key_name = f"dot_G({y1},{a1})_vs_G({y2},{a2})"
-        if jac1 is not None and jac2 is not None:
-            jacobian_results[key_name] = np.dot(jac1, jac2)
+        if jac1_list is not None and jac2_list is not None:
+            inner_prod = _weighted_inner_product(jac1_list, jac2_list, optimizer_params)
+            jacobian_results[key_name] = inner_prod
         else:
             jacobian_results[key_name] = np.nan
+    
+    # --- 3. 幾何学的中心ベクトルの分析 ---
+    # C+1 = 1/2 * (Phi_(+1,+1) + Phi_(-1,+1))
+    # C-1 = 1/2 * (Phi_(+1,-1) + Phi_(-1,-1))
+    # L+1 = 1/2 * (Phi_(+1,+1) + Phi_(+1,-1))
+    # L-1 = 1/2 * (Phi_(-1,-1) + Phi_(-1,+1))
+    #
+    # Delta_C = C+1 - C-1 = 1/2 * (Phi_pp + Phi_np - Phi_pn - Phi_nn)
+    # Delta_L = L+1 - L-1 = 1/2 * (Phi_pp + Phi_pn - Phi_nn - Phi_np)
+    #
+    # m_A = 2 * Delta_C
+    # m_Y = 2 * Delta_L
+    
+    Phi_pp = group_jacobians_list.get((1, 1))
+    Phi_pn = group_jacobians_list.get((1, -1))
+    Phi_np = group_jacobians_list.get((-1, 1))
+    Phi_nn = group_jacobians_list.get((-1, -1))
+
+    # 必要なグループがすべて存在するかチェック
+    if all(v is not None for v in [Phi_pp, Phi_pn, Phi_np, Phi_nn]):
+        try:
+            # パラメータリストの長さを取得 (すべて同じ長さと仮定)
+            num_params = len(Phi_pp)
+            if not all(len(v) == num_params for v in [Phi_pn, Phi_np, Phi_nn]):
+                raise ValueError("Jacobian lists have mismatched parameter counts.")
+
+            # Delta_C = 1/2 * ( (Phi_pp - Phi_pn) + (Phi_np - Phi_nn) )
+            delta_C_list = [0.5 * (Phi_pp[i] - Phi_pn[i] + Phi_np[i] - Phi_nn[i]) for i in range(num_params)]
+            
+            # Delta_L = 1/2 * ( (Phi_pp - Phi_np) + (Phi_pn - Phi_nn) )
+            delta_L_list = [0.5 * (Phi_pp[i] + Phi_pn[i] - Phi_np[i] - Phi_nn[i]) for i in range(num_params)]
+
+            # ノルムの2乗 ||Delta C||_η^2 と ||Delta L||_η^2
+            norm_sq_delta_C = _weighted_inner_product(delta_C_list, delta_C_list, optimizer_params)
+            norm_sq_delta_L = _weighted_inner_product(delta_L_list, delta_L_list, optimizer_params)
+            
+            # ノルム ||Delta C||_η と ||Delta L||_η
+            norm_delta_C = np.sqrt(norm_sq_delta_C) if norm_sq_delta_C >= 0 else np.nan
+            norm_delta_L = np.sqrt(norm_sq_delta_L) if norm_sq_delta_L >= 0 else np.nan
+            
+            jacobian_results["norm_Delta_C"] = norm_delta_C
+            jacobian_results["norm_Delta_L"] = norm_delta_L
+            
+            # 内積 <Delta C, Delta L>_η
+            inner_prod_CL = _weighted_inner_product(delta_C_list, delta_L_list, optimizer_params)
+            jacobian_results["dot_Delta_C_Delta_L"] = inner_prod_CL
+
+            # コサイン類似度
+            if norm_delta_C > 1e-9 and norm_delta_L > 1e-9:
+                cosine_sim_CL = inner_prod_CL / (norm_delta_C * norm_delta_L)
+            else:
+                cosine_sim_CL = np.nan
+            jacobian_results["cosine_Delta_C_Delta_L"] = cosine_sim_CL
+
+            # ||m_A||^2 = 4 * ||Delta_C||^2
+            # ||m_Y||^2 = 4 * ||Delta_L||^2
+            # <m_A, m_Y> = 4 * <Delta_C, Delta_L>
+            jacobian_results["paper_norm_sq_mu_A"] = 4.0 * norm_sq_delta_C
+            jacobian_results["paper_norm_sq_mu_Y"] = 4.0 * norm_sq_delta_L
+            jacobian_results["paper_dot_mu_A_mu_Y"] = 4.0 * inner_prod_CL
+
+        except Exception as e:
+            print(f"Error during geometric center analysis: {e}")
+            keys_to_nan = ["norm_Delta_C", "norm_Delta_L", "dot_Delta_C_Delta_L", 
+                           "cosine_Delta_C_Delta_L", "paper_norm_sq_mu_A", 
+                           "paper_norm_sq_mu_Y", "paper_dot_mu_A_mu_Y"]
+            for k in keys_to_nan:
+                jacobian_results[k] = np.nan
+    else:
+        print(f"Skipping geometric center (Delta C, Delta L) analysis: missing group Jacobian data.")
+        keys_to_nan = ["norm_Delta_C", "norm_Delta_L", "dot_Delta_C_Delta_L", 
+                       "cosine_Delta_C_Delta_L", "paper_norm_sq_mu_A", 
+                       "paper_norm_sq_mu_Y", "paper_dot_mu_A_mu_Y"]
+        for k in keys_to_nan:
+            jacobian_results[k] = np.nan
             
     return jacobian_results
 
@@ -471,8 +606,9 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
     if config.get('analyze_jacobian_norm', False):
         if analysis_target in ['train', 'both']:
             histories['jacobian_norm_train'][epoch] = analyze_jacobian_norms(
-                model, X_train, y_train, a_train, config['device'], config['jacobian_num_samples'], "Train")
+                model, X_train, y_train, a_train, config['device'], 
+                config['jacobian_num_samples'], optimizer_params, "Train")
         if analysis_target in ['test', 'both']:
             histories['jacobian_norm_test'][epoch] = analyze_jacobian_norms(
-                model, X_test, y_test, a_test, config['device'], config['jacobian_num_samples'], "Test")
-
+                model, X_test, y_test, a_test, config['device'], 
+                config['jacobian_num_samples'], optimizer_params, "Test")
