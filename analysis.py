@@ -425,6 +425,12 @@ def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, o
     Phi_np = group_jacobians_list.get((-1, 1))
     Phi_nn = group_jacobians_list.get((-1, -1))
 
+    # エラー時に NaN を設定するキーのリスト
+    keys_to_nan = ["norm_Delta_C", "norm_Delta_L", "ratio_Delta_C_L", 
+                   "dot_Delta_C_Delta_L", "cosine_Delta_C_Delta_L", 
+                   "paper_norm_sq_mu_A", "paper_norm_sq_mu_Y", 
+                   "paper_dot_mu_A_mu_Y"]
+
     # 必要なグループがすべて存在するかチェック
     if all(v is not None for v in [Phi_pp, Phi_pn, Phi_np, Phi_nn]):
         try:
@@ -450,6 +456,13 @@ def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, o
             jacobian_results["norm_Delta_C"] = norm_delta_C
             jacobian_results["norm_Delta_L"] = norm_delta_L
             
+            # 比 (Ratio) の計算
+            if not np.isnan(norm_delta_C) and not np.isnan(norm_delta_L) and norm_delta_L > 1e-9:
+                ratio_Delta_C_L = norm_delta_C / norm_delta_L
+            else:
+                ratio_Delta_C_L = np.nan
+            jacobian_results["ratio_Delta_C_L"] = ratio_Delta_C_L
+
             # 内積 <Delta C, Delta L>_η
             inner_prod_CL = _weighted_inner_product(delta_C_list, delta_L_list, optimizer_params)
             jacobian_results["dot_Delta_C_Delta_L"] = inner_prod_CL
@@ -470,16 +483,10 @@ def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, o
 
         except Exception as e:
             print(f"Error during geometric center analysis: {e}")
-            keys_to_nan = ["norm_Delta_C", "norm_Delta_L", "dot_Delta_C_Delta_L", 
-                           "cosine_Delta_C_Delta_L", "paper_norm_sq_mu_A", 
-                           "paper_norm_sq_mu_Y", "paper_dot_mu_A_mu_Y"]
             for k in keys_to_nan:
                 jacobian_results[k] = np.nan
     else:
         print(f"Skipping geometric center (Delta C, Delta L) analysis: missing group Jacobian data.")
-        keys_to_nan = ["norm_Delta_C", "norm_Delta_L", "dot_Delta_C_Delta_L", 
-                       "cosine_Delta_C_Delta_L", "paper_norm_sq_mu_A", 
-                       "paper_norm_sq_mu_Y", "paper_dot_mu_A_mu_Y"]
         for k in keys_to_nan:
             jacobian_results[k] = np.nan
             

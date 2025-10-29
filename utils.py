@@ -86,46 +86,63 @@ def display_group_distribution(y_data, a_data, set_name, dataset_type, result_di
             # 複数回呼び出された場合のために，区切り線を追加
             f.write(output_text + "\n")
 
-def evaluate_model(model, X_data, y_data, a_data, device, loss_function):
+def evaluate_model(model, X_data, y_data, a_data, device, loss_function, eval_batch_size):
     """ モデルの性能を評価し，各種メトリクスを返す """
     model.eval()
-    with torch.no_grad():
-        scores, _ = model(X_data.to(device))
-        scores = scores.cpu()
 
-        y_01 = ((y_data + 1) / 2).long()
-        a_01 = ((a_data + 1) / 2).long()
-        group_indices = 2 * y_01 + a_01
-
-        if loss_function == 'logistic':
-            losses = F.softplus(-y_data * scores)
-        elif loss_function == 'mse':
-            losses = (scores - y_data).pow(2)
-        else:
-            raise ValueError(f"Unknown loss_function: {loss_function}")
-
-        avg_loss = losses.mean().item()
-        preds = torch.sign(scores)
-        corrects = (preds == y_data).float()
-        avg_acc = corrects.mean().item()
-
-        group_losses = torch.full((4,), float('nan'))
-        group_accs = torch.full((4,), float('nan'))
-
-        for i in range(4):
-            mask = (group_indices == i)
-            if mask.sum() > 0:
-                group_losses[i] = losses[mask].mean().item()
-                group_accs[i] = corrects[mask].mean().item()
-
-        valid_losses = group_losses[~torch.isnan(group_losses)]
-        valid_accs = group_accs[~torch.isnan(group_accs)]
+    dataset = TensorDataset(X_data, y_data)
+    batch_size_to_use = eval_batch_size if eval_batch_size is not None and eval_batch_size < len(X_data) else len(X_data)
+    if batch_size_to_use <= 0:
+        batch_size_to_use = len(X_data)
         
-        worst_loss = valid_losses.max().item() if len(valid_losses) > 0 else 0.0
-        worst_acc = valid_accs.min().item() if len(valid_accs) > 0 else 0.0
+    loader = DataLoader(dataset, batch_size=batch_size_to_use, shuffle=False)
+    
+    all_scores = []
+    all_y_batch = []
+    
+    with torch.no_grad():
+        for X_batch, y_batch in loader:
+            X_batch = X_batch.to(device)
+            scores_batch, _ = model(X_batch)
+            all_scores.append(scores_batch.cpu())
+            all_y_batch.append(y_batch.cpu())
 
-        return {
-            'avg_loss': avg_loss, 'worst_loss': worst_loss,
-            'avg_acc': avg_acc, 'worst_acc': worst_acc,
-            'group_losses': group_losses.tolist(), 'group_accs': group_accs.tolist(),
-        }
+    scores = torch.cat(all_scores, dim=0)
+    y_data_eval = torch.cat(all_y_batch, dim=0)
+
+    y_01 = ((y_data_eval + 1) / 2).long()
+    a_01 = ((a_data + 1) / 2).long()
+    group_indices = 2 * y_01 + a_01
+
+    if loss_function == 'logistic':
+        losses = F.softplus(-y_data_eval * scores)
+    elif loss_function == 'mse':
+        losses = (scores - y_data_eval).pow(2)
+    else:
+        raise ValueError(f"Unknown loss_function: {loss_function}")
+
+    avg_loss = losses.mean().item()
+    preds = torch.sign(scores)
+    corrects = (preds == y_data_eval).float()
+    avg_acc = corrects.mean().item()
+
+    group_losses = torch.full((4,), float('nan'))
+    group_accs = torch.full((4,), float('nan'))
+
+    for i in range(4):
+        mask = (group_indices == i)
+        if mask.sum() > 0:
+            group_losses[i] = losses[mask].mean().item()
+            group_accs[i] = corrects[mask].mean().item()
+
+    valid_losses = group_losses[~torch.isnan(group_losses)]
+    valid_accs = group_accs[~torch.isnan(group_accs)]
+    
+    worst_loss = valid_losses.max().item() if len(valid_losses) > 0 else 0.0
+    worst_acc = valid_accs.min().item() if len(valid_accs) > 0 else 0.0
+
+    return {
+        'avg_loss': avg_loss, 'worst_loss': worst_loss,
+        'avg_acc': avg_acc, 'worst_acc': worst_acc,
+        'group_losses': group_losses.tolist(), 'group_accs': group_accs.tolist(),
+    }

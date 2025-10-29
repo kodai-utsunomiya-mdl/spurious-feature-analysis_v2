@@ -207,6 +207,11 @@ def main(config_path='config.yaml'):
     # --- debias_method の読み込み ---
     debias_method = config.get('debias_method', 'None')
     loss_function_name = config['loss_function']
+    
+    # eval_batch_size を config から読み込む
+    # 見つからない場合は None を設定 (utils.py 側でフルバッチとして扱われる)
+    eval_batch_size = config.get('eval_batch_size', None)
+
 
     # wandbの初期化
     if config.get('wandb', {}).get('enable', False):
@@ -438,7 +443,7 @@ def main(config_path='config.yaml'):
     
     if debias_method == 'IW_uniform':
         print("\n--- Importance Weighting (Uniform Target) Enabled (Equivalent to v_inv) ---")
-        print(f"  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
+        print(f"  [Warning] 'train_batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
         print("  Removing both marginal bias (Term II) and spurious correlation (Term III).")
 
         # 理論に基づき，重みを一律 1/4 (0.25) に設定 (v_inv の勾配流)
@@ -452,7 +457,7 @@ def main(config_path='config.yaml'):
         
     elif debias_method == 'GroupDRO':
         print("\n--- Group DRO Enabled ---")
-        print(f"  [Warning] 'batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
+        print(f"  [Warning] 'train_batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
         
         # 動的重み q を一様分布で初期化
         dro_q_weights = torch.ones(len(group_keys), device=device) / len(group_keys)
@@ -465,8 +470,9 @@ def main(config_path='config.yaml'):
     elif debias_method == 'None':
         # 通常のERM学習
         print(f"\n--- ERM (Debias Method: None) Enabled ---")
-        print(f"  Using batch_size: {config['batch_size']}")
-        train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=config['batch_size'], shuffle=True)
+        train_batch_size_erm = config.get('train_batch_size', 50000) 
+        print(f"  Using train_batch_size: {train_batch_size_erm}")
+        train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=train_batch_size_erm, shuffle=True)
     
     else:
         raise ValueError(f"Unknown debias_method: {debias_method}. Must be 'None', 'IW_uniform', or 'GroupDRO'.")
@@ -520,6 +526,8 @@ def main(config_path='config.yaml'):
 
     # 5. 学習・評価ループ
     print("\n--- 3. Starting Training & Evaluation Loop ---")
+    print(f"Using eval_batch_size: {eval_batch_size if eval_batch_size is not None else 'Full Batch'}")
+    
     history = {k: [] for k in ['train_avg_loss', 'test_avg_loss', 'train_worst_loss', 'test_worst_loss',
                                'train_avg_acc', 'test_avg_acc', 'train_worst_acc', 'test_worst_acc',
                                'train_group_losses', 'test_group_losses', 'train_group_accs', 'test_group_accs']}
@@ -649,8 +657,9 @@ def main(config_path='config.yaml'):
         # --- 分岐終了 ---
 
         # --- 評価 ---
-        train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name)
-        test_metrics = utils.evaluate_model(model, X_test, y_test, a_test, device, loss_function_name)
+        train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name, eval_batch_size)
+        test_metrics = utils.evaluate_model(model, X_test, y_test, a_test, device, loss_function_name, eval_batch_size)
+        
         for key_base in history.keys():
             if key_base.startswith('train_'):
                 history[key_base].append(train_metrics[key_base.replace('train_', '')])

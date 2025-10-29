@@ -3,8 +3,8 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "cm_gradient_basis"
-dataset_name: "ColoredMNIST"  # "ColoredMNIST" or "WaterBirds"
+experiment_name: "wb_gradient_basis"
+dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
 loss_function: "mse"          # "logistic" or "mse"
 activation_function: "relu"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "mf"  # "SP", "NTP", "muP", "mf", "NTP_two_layer" (mfおよびNTP_two_layerは隠れ層1つのときのみ有効)
@@ -72,7 +72,8 @@ hidden_dim: 4096
 # 学習設定
 # ---------------------------------
 epochs: 20000
-batch_size: 50000   # ERMの場合のバッチサイズ (IW や DRO では無視する)
+train_batch_size: 50000   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+eval_batch_size: 50000    # 評価時のバッチサイズ
 optimizer: "SGD"    # "SGD" or "Adam"
 learning_rate: 0.1
 momentum: 0.0
