@@ -154,11 +154,13 @@ def plot_gradient_gram_evolution(history_train, history_test, save_dir):
 def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
     if not history_train and not history_test: return
     epochs = sorted(history_train.keys() if history_train else history_test.keys())
-    
-    # Norms
+
     fig1, ax1 = plt.subplots(figsize=(12, 7))
-    fig1.suptitle('Evolution of Jacobian Norms', fontsize=16)
-    norm_keys = [k for k in next(iter(history_train.values())).keys() if k.startswith('norm')]
+    fig1.suptitle('Evolution of Jacobian Norms (η-weighted)', fontsize=16)
+    # 履歴からキーをチェック
+    first_epoch_data = history_train.get(epochs[0], {}) or history_test.get(epochs[0], {})
+    norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('norm_G(')])
+    
     colors = plt.cm.jet(np.linspace(0, 1, len(norm_keys)))
     for i, key in enumerate(norm_keys):
         if history_train:
@@ -166,15 +168,14 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
             ax1.plot(epochs, vals, marker='o', linestyle='-', color=colors[i], label=f'{key} (Train)')
         if history_test:
             vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
-            ax1.plot(epochs, vals, marker='x', linestyle='--', color=colors[i])
+            ax1.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
     ax1.set(xlabel='Epoch', ylabel='Squared Norm (log)', yscale='log')
     ax1.legend(); ax1.grid(True, which="both", ls="--")
     _save_and_close(fig1, save_dir, 'jacobian_norms.png')
 
-    # Inner Products
-    dot_keys = [k for k in next(iter(history_train.values())).keys() if k.startswith('dot')]
+    dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('dot_G(')])
     fig2, ax2 = plt.subplots(figsize=(12, 7))
-    fig2.suptitle('Evolution of Jacobian Inner Products', fontsize=16)
+    fig2.suptitle('Evolution of Jacobian Inner Products (η-weighted)', fontsize=16)
     colors = plt.cm.jet(np.linspace(0, 1, len(dot_keys)))
     for i, key in enumerate(dot_keys):
         if history_train:
@@ -182,11 +183,78 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
             ax2.plot(epochs, vals, marker='o', linestyle='-', color=colors[i], label=f'{key} (Train)')
         if history_test:
             vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
-            ax2.plot(epochs, vals, marker='x', linestyle='--', color=colors[i])
+            ax2.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
     ax2.set(xlabel='Epoch', ylabel='Inner Product (log)', yscale='symlog')
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5)); ax2.grid(True, which="both", ls="--")
     fig2.tight_layout(rect=[0, 0, 0.8, 0.95])
     _save_and_close(fig2, save_dir, 'jacobian_inner_products.png')
+
+    # --- 幾何学的中心のメトリクス ---
+    delta_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('norm_Delta_')])
+    delta_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('dot_Delta_')])
+    delta_cosine_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('cosine_Delta_')])
+    paper_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_norm_sq_')])
+    paper_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_dot_')])
+
+    # キーが存在する場合のみプロット
+    if delta_norm_keys or delta_dot_keys or delta_cosine_keys or paper_norm_keys or paper_dot_keys:
+        
+        num_plots = 3 # Norms, Dots/PaperTerms, Cosines
+        fig3, axes3 = plt.subplots(num_plots, 1, figsize=(14, 7 * num_plots))
+        if num_plots == 1: axes3 = [axes3] # Make iterable
+        fig3.suptitle('Evolution of Jacobian Geometric Center Metrics (Appendix A)', fontsize=16)
+
+        plot_idx = 0
+
+        # --- Delta C/L ノルム ---
+        if delta_norm_keys:
+            ax = axes3[plot_idx]
+            colors = plt.cm.autumn(np.linspace(0, 1, len(delta_norm_keys)))
+            for i, key in enumerate(delta_norm_keys):
+                if history_train:
+                    vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='o', linestyle='-', color=colors[i], label=f'{key} (Train)')
+                if history_test:
+                    vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
+            ax.set(xlabel='Epoch', ylabel='Norm (log)', title='Geometric Center Norms (||ΔC||, ||ΔL||)', yscale='log')
+            ax.legend(); ax.grid(True, which="both", ls="--")
+            plot_idx += 1
+
+        # --- Delta C/L 内積 (論文の項含む) ---
+        all_dot_keys = delta_dot_keys + paper_dot_keys + paper_norm_keys # paper_norm_sq は dot とスケールが近い
+        if all_dot_keys:
+            ax = axes3[plot_idx]
+            colors = plt.cm.jet(np.linspace(0, 1, len(all_dot_keys)))
+            for i, key in enumerate(all_dot_keys):
+                if history_train:
+                    vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='o', linestyle='-', color=colors[i], label=f'{key} (Train)')
+                if history_test:
+                    vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
+            ax.set(xlabel='Epoch', ylabel='Inner Product / Norm^2 (symlog)', title='Geometric Center Inner Products & Paper Terms', yscale='symlog')
+            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5)); ax.grid(True, which="both", ls="--")
+            plot_idx += 1
+
+        # --- Delta C/L コサイン類似度 ---
+        if delta_cosine_keys:
+            ax = axes3[plot_idx]
+            colors = plt.cm.winter(np.linspace(0, 1, len(delta_cosine_keys)))
+            for i, key in enumerate(delta_cosine_keys):
+                if history_train:
+                    vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='o', linestyle='-', color=colors[i], label=f'{key} (Train)')
+                if history_test:
+                    vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                    ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
+            ax.set(xlabel='Epoch', ylabel='Cosine Similarity', title='Geometric Center Alignment (cos(ΔC, ΔL))', ylim=(-1.05, 1.05))
+            ax.legend(); ax.grid(True, which="both", ls="--")
+            plot_idx += 1
+        
+        fig3.tight_layout(rect=[0, 0, 0.85, 0.96])
+        _save_and_close(fig3, save_dir, 'jacobian_geometric_centers.png')
+
 
 # 勾配グラム行列のスペクトルプロット関数
 def plot_gradient_gram_spectrum_evolution(history_train, history_test, save_dir):

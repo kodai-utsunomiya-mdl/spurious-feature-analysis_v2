@@ -16,7 +16,45 @@ device: "cuda"                # "cuda" or "cpu"
 # ---------------------------------
 num_train_samples: 50000
 num_test_samples: 9000
-# ColoredMNIST固有の設定
+
+# --- 事前特徴抽出器の設定 ---
+use_feature_extractor: true
+
+# --- 特徴抽出器のモデル選択 ---
+# 'ResNet18', 'ResNet50', 'ViT_B_16'
+# DINOv2系: 'DINOv2_ViT_S_14' (384-dim), 'DINOv2_ViT_B_14' (768-dim),
+#            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
+feature_extractor_model_name: "DINOv2_ViT_G_14" 
+
+# --- ResNet系 中間層特徴マップ設定 ---
+# [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
+# 'avgpool': avgpool 後のベクトル (デフォルト)
+# 'layer3': ResNetの layer3 出力
+# 'layer4': ResNetの layer4 出力
+feature_extractor_resnet_intermediate_layer: "avgpool" 
+
+# 'resnet_intermediate_layer' が 'avgpool' 以外の場合の適応的空間プーリングサイズ
+# 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
+feature_extractor_resnet_pooling_output_size: 2 
+
+# --- ViT/DINOv2系 中間層設定 ---
+# [ViT/DINOv2系でのみ有効]
+# 抽出するブロックのインデックス (0 から N-1). 
+# -1 は最後のブロック, -2 は最後から2番目, ...
+# (ViT_B_16: 12 blocks (0-11))
+# (DINOv2_ViT_S_14, DINOv2_ViT_B_14: 12 blocks (0-11))
+# (DINOv2_ViT_L_14: 24 blocks (0-23))
+# (DINOv2_ViT_G_14: 40 blocks (0-39))
+feature_extractor_vit_target_block: -1 # デフォルトは最後のブロック
+
+# 'target_block' からの特徴をどう集約するか
+# 'cls_token': [CLS] トークンのみを使用 (デフォルト)
+# 'mean_pool_patch': パッチトークンのみを平均プーリング
+# 'mean_pool_all': [CLS] と パッチトークンの両方を平均プーリング
+feature_extractor_vit_aggregation_mode: "mean_pool_all" 
+
+
+# --- ColoredMNIST 特有の設定 ---
 train_correlation: 0.8
 train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
 train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
@@ -60,17 +98,14 @@ jacobian_norm_analysis_epochs:
 # 命題1の分析設定
 proposition1_terms:
   # 分析対象とするグループペア [g1, g2] のリスト
-  # g = (y, a). 
-  # 例: [[-1, -1], [-1, 1]] は g1=(-1,-1), g2=(-1,1) のペア
   group_pairs:
     - [[-1, 1], [-1, -1]]  # 少数派・多数派
+    - [[1, -1], [-1, -1]]
     - [[ 1,  -1], [ 1, 1]]
 
 # 勾配ノルム比の分析設定
 gradient_norm_ratio_config:
   # 分析対象とするグループペア [g_numerator, g_denominator] のリスト
-  # ||∇g_numerator|| / ||∇g_denominator|| の比を計算
-  # g = (y, a).
   group_pairs:
     - [[-1, -1], [-1, 1]]  # 多数派(y=-1) / 少数派(y=-1)
     - [[ 1,  1], [ 1, -1]]  # 多数派(y= 1) / 少数派(y= 1)
@@ -78,6 +113,7 @@ gradient_norm_ratio_config:
 # 解析対象データセット ('train', 'test', 'both')
 analysis_target: 'train'
 jacobian_num_samples: 100    # ヤコビアンを計算するためのグループから使用するサンプル数
+gradient_gram_num_samples: null # 勾配グラム行列を計算するためのグループから使用するサンプル数 (null の場合は全サンプル使用)
 show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
 
 # ---------------------------------

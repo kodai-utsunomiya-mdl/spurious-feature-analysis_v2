@@ -4,71 +4,116 @@ import numpy as np
 from itertools import combinations, combinations_with_replacement
 import torch
 import torch.nn.functional as F
+from torch.func import vmap, grad, functional_call
 
 # ==============================================================================
-# ヤコビアン計算のヘルパー関数
+# ヤコビアン計算のヘルパー関数 (vmap を使用してバッチ化)
 # ==============================================================================
 def get_model_jacobian(model, X_subset, device):
     """
     モデルのヤコビアンの期待値を計算 (パラメータごとのリストとして)
+    vmapを使用してバッチ処理で高速化
     """
     model.eval()
-    jacobians_list = [] # サンプルごとの勾配リストを格納
     X_subset = X_subset.to(device)
+
+    # 1. モデルのパラメータとバッファを「辞書」として取得
+    params_dict = dict(model.named_parameters())
+    buffers_dict = dict(model.named_buffers()) # このモデルでは通常は空
+
+    # 2. gradが微分対象とする「パラメータの値のタプル」を取得
+    #    (gradは辞書ではなく，タプルやテンソルを引数に取るため)
+    params_values_tuple = tuple(params_dict.values())
     
-    # 勾配を持つパラメータの数を事前に取得
-    # (fix_final_layer=True などで requires_grad=False のパラメータを除外)
+    # 3. パラメータの「キーのタプル」を保持 (後で辞書を再構築するため)
+    params_keys = tuple(params_dict.keys())
+
+    def compute_output_scalar(params_values_tuple_inner, x_sample):
+        """
+        1サンプル(x_sample)と「パラメータ値のタプル」を受け取り，
+        モデルのスカラ出力を計算する
+        
+        Note: buffers_dict は外側のスコープからキャプチャされ、定数として扱われる
+        """
+        
+        # 4. functional_call のために、(キー, 値)タプルからパラメータ辞書を再構築
+        param_dict_reconstructed = {
+            key: value for key, value in zip(params_keys, params_values_tuple_inner)
+        }
+        
+        # モデルはバッチ入力を想定しているため，(C, H, W) -> (1, C, H, W) のように
+        # バッチ次元 (1) を追加して渡す
+        x_batch = x_sample.unsqueeze(0)
+        
+        # 5. functional_call を (param_dict, buffer_dict) の形式で呼び出す
+        return torch.func.functional_call(
+            model,
+            (param_dict_reconstructed, buffers_dict), # (param_dict, buffer_dict)
+            x_batch
+        )[0].squeeze(0) # [0]で output_scalar を取得
+
+    # 6. 1サンプルのヤコビアンを計算する関数を定義
+    #    compute_output_scalar の第0引数 (params_values_tuple_inner) で微分
+    compute_jacobian_per_sample = torch.func.grad(compute_output_scalar, argnums=0)
+
+    # 7. vmap を使ってバッチ全体でヤコビアン計算を並列化
+    #    compute_jacobian_per_sample を
+    #    params_values_tuple (in_dims=None, バッチ処理せず共有)
+    #    X_subset (in_dims=0, 0次元目でバッチ処理)
+    #    に適用する
+    
+    # batched_jacobians_tuple は (params_values_tuple と同じ構造の) タプル
+    # 各要素の形状は (N, *param_shape), Nはバッチサイズ
+    try:
+        batched_jacobians_tuple = torch.func.vmap(
+            compute_jacobian_per_sample, in_dims=(None, 0)
+        )(params_values_tuple, X_subset)
+        
+    except Exception as e:
+        print(f"Error during vmap execution: {e}")
+        print("This might be due to CUDA OOM or an issue with the functionalized model.")
+        return [] # エラー時は空リストを返す
+
+    # 8. バッチ次元 (dim=0) で平均をとり，期待ヤコビアンを計算
+    # (None が返る可能性があるため，None でないかチェックしながら平均化)
+    avg_jacobian_tuple = tuple(
+        jac_batch.mean(dim=0) if jac_batch is not None else None
+        for jac_batch in batched_jacobians_tuple
+    )
+
+    # 9. Numpy配列のリストに変換
+    avg_jacobian_list = [
+        avg_grad.cpu().detach().numpy() if avg_grad is not None else None
+        for avg_grad in avg_jacobian_tuple
+    ]
+
+    # 10. None (勾配が計算されなかったパラメータ,例: requires_grad=False) を除外
+    avg_jacobian_list_filtered = [g for g in avg_jacobian_list if g is not None]
+
+    # 11. 警告チェック
     num_grad_params = sum(1 for p in model.parameters() if p.requires_grad)
-
-    for i in range(len(X_subset)):
-        x_i = X_subset[i:i+1]
-        x_i.requires_grad_(True)
-        
-        y_pred, _ = model(x_i)
-        
-        # モデルの全パラメータに対する勾配を計算
-        # allow_unused=True で requires_grad=False のパラメータを許容
-        grad_params = torch.autograd.grad(y_pred, model.parameters(), create_graph=True, allow_unused=True)
-        
-        # grad_params には None が含まれる可能性がある
-        grad_list = [g.cpu().detach().numpy() for g in grad_params if g is not None]
-        
-        # 勾配が計算されたパラメータ数と期待値が一致するか簡易チェック
-        if i == 0 and len(grad_list) != num_grad_params:
-            print(f"Warning: Number of gradients ({len(grad_list)}) does not match number of grad-requiring parameters ({num_grad_params}).")
-
-        if grad_list: # 何かしら勾配があれば
-            jacobians_list.append(grad_list)
     
-    if not jacobians_list:
-        print("Warning: No Jacobian data collected.")
-        return None # サンプルが0か，勾配が全くない
+    if len(avg_jacobian_list_filtered) != num_grad_params:
+         # grad() は requires_grad=False のパラメータに対して None を返すため，
+         # filtered と num_grad_params は一致するはずだが，念のため警告を残す
+         print(f"Warning: Final averaged Jacobian list length ({len(avg_jacobian_list_filtered)}) differs from expected ({num_grad_params}).")
 
-    # パラメータごとに平均を計算
-    num_params = len(jacobians_list[0])
-    avg_jacobian_list = []
-    for p_idx in range(num_params):
-        # p_idx番目のパラメータの勾配を全サンプルから集めて平均
-        # リストの長さが異なる場合に備えて安全にアクセス
-        valid_grads = [jac[p_idx] for jac in jacobians_list if len(jac) > p_idx]
-        if valid_grads:
-            avg_param_grad = np.mean(valid_grads, axis=0)
-            avg_jacobian_list.append(avg_param_grad)
-        
-    if len(avg_jacobian_list) != num_grad_params:
-         print(f"Warning: Final averaged Jacobian list length ({len(avg_jacobian_list)}) differs from expected ({num_grad_params}).")
-
-    return avg_jacobian_list # パラメータごとのNumpy配列のリスト
+    return avg_jacobian_list_filtered
 
 
 # ==============================================================================
 # 勾配グラム行列の分析
 # ==============================================================================
-def analyze_gradient_gram_matrix(model, X_data, y_data, a_data, device, loss_function, dataset_type, optimizer_params):
+def analyze_gradient_gram_matrix(model, X_data, y_data, a_data, device, loss_function, dataset_type, optimizer_params, num_samples):
     """
     グループ間の勾配の内積からなるグラム行列を計算（学習率を考慮）
     """
     print(f"\nAnalyzing GRADIENT GRAM MATRIX on {dataset_type} data...")
+    if num_samples is not None:
+        print(f"  (using {num_samples} samples per group)...")
+    else:
+        print(f"  (using all available samples per group)...")
+        
     group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
     group_grads_list = {}
 
@@ -78,7 +123,14 @@ def analyze_gradient_gram_matrix(model, X_data, y_data, a_data, device, loss_fun
             group_grads_list[(y_val, a_val)] = None
             continue
         
-        X_group, y_group = X_data[mask], y_data[mask]
+        X_group_all, y_group_all = X_data[mask], y_data[mask]
+        
+        # --- サンプリング ---
+        if num_samples is not None and len(X_group_all) > num_samples:
+            indices = np.random.choice(len(X_group_all), num_samples, replace=False)
+            X_group, y_group = X_group_all[indices], y_group_all[indices]
+        else:
+            X_group, y_group = X_group_all, y_group_all
         
         model.zero_grad()
         scores, _ = model(X_group.to(device))
@@ -327,6 +379,7 @@ def analyze_jacobian_norms(model, X_data, y_data, a_data, device, num_samples, o
         else:
             X_subset = X_group
             
+        # ここで vmap 化された get_model_jacobian が呼び出される
         group_jacobians_list[(y_val, a_val)] = get_model_jacobian(model, X_subset, device)
 
     jacobian_results = {}
@@ -545,15 +598,22 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
                                      config.get('analyze_proposition1_terms', False)
 
     if run_grad_gram_related_analysis:
+        # --- サンプル数をconfigから取得 ---
+        num_samples_grad = config.get('gradient_gram_num_samples', None) # Noneの場合は全サンプル使用
+        
         if analysis_target in ['train', 'both']:
             # グラム行列と，計算に使った勾配リストを受け取る
             grad_gram_train_results, group_grads_train = analyze_gradient_gram_matrix(
-                model, X_train, y_train, a_train, config['device'], config['loss_function'], "Train", optimizer_params)
+                model, X_train, y_train, a_train, config['device'], config['loss_function'], "Train", optimizer_params,
+                num_samples_grad
+            )
             if config.get('analyze_gradient_gram', False):
                 histories['grad_gram_train'][epoch] = grad_gram_train_results
         if analysis_target in ['test', 'both']:
             grad_gram_test_results, group_grads_test = analyze_gradient_gram_matrix(
-                model, X_test, y_test, a_test, config['device'], config['loss_function'], "Test", optimizer_params)
+                model, X_test, y_test, a_test, config['device'], config['loss_function'], "Test", optimizer_params,
+                num_samples_grad
+            )
             if config.get('analyze_gradient_gram', False):
                 histories['grad_gram_test'][epoch] = grad_gram_test_results
 
@@ -604,11 +664,14 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
 
     # --- ヤコビアンノルムの分析 ---
     if config.get('analyze_jacobian_norm', False):
+        # ヤコビアンのサンプル数を取得
+        num_samples_jac = config.get('jacobian_num_samples', 100)
+        
         if analysis_target in ['train', 'both']:
             histories['jacobian_norm_train'][epoch] = analyze_jacobian_norms(
                 model, X_train, y_train, a_train, config['device'], 
-                config['jacobian_num_samples'], optimizer_params, "Train")
+                num_samples_jac, optimizer_params, "Train")
         if analysis_target in ['test', 'both']:
             histories['jacobian_norm_test'][epoch] = analyze_jacobian_norms(
                 model, X_test, y_test, a_test, config['device'], 
-                config['jacobian_num_samples'], optimizer_params, "Test")
+                num_samples_jac, optimizer_params, "Test")
