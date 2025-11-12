@@ -511,13 +511,24 @@ def main(config_path='config.yaml'):
         initialization_method=config['initialization_method']
     ).to(device)
 
-    optimizer_params = model_module.apply_manual_parametrization(
-        model, method=config['initialization_method'], base_lr=config['learning_rate'],
-        hidden_dim=config['hidden_dim'], input_dim=input_dim,
+    # apply_manual_parametrization はモデルの重みを直接初期化する
+    model_module.apply_manual_parametrization(
+        model, method=config['initialization_method'],
+        hidden_dim=config['hidden_dim'],
         fix_final_layer=config.get('fix_final_layer', False)
     )
 
-    optimizer = optim.Adam(optimizer_params) if config['optimizer'] == 'Adam' else optim.SGD(optimizer_params, momentum=config['momentum'])
+    # オプティマイザに渡すパラメータを設定
+    # (fix_final_layer=True の場合, model.parameters() は
+    #  requires_grad=True のパラメータのみを返すため自動的に処理される)
+    optimizer_params_list = model.parameters()
+
+    # オプティマイザの作成
+    if config['optimizer'] == 'Adam':
+        optimizer = optim.Adam(optimizer_params_list, lr=config['learning_rate'])
+    else:
+        optimizer = optim.SGD(optimizer_params_list, lr=config['learning_rate'], momentum=config['momentum'])
+
 
     if config.get('wandb', {}).get('enable', False):
         wandb.watch(model, log='all', log_freq=100)
@@ -533,13 +544,12 @@ def main(config_path='config.yaml'):
                                'train_group_losses', 'test_group_losses', 'train_group_accs', 'test_group_accs']}
 
     analysis_histories = {name: {} for name in [
-        'grad_gram_train', 'grad_gram_test', 'jacobian_norm_train', 'jacobian_norm_test',
-        'grad_gram_spectrum_train', 'grad_gram_spectrum_test',
-        'grad_norm_ratio_train', 'grad_norm_ratio_test',
+        'jacobian_norm_train', 'jacobian_norm_test',
         'grad_basis_train', 'grad_basis_test',
-        'prop1_terms_train', 'prop1_terms_test'
+        'gap_factors_train', 'gap_factors_test',
+        'static_dynamic_decomp_train', 'static_dynamic_decomp_test'
     ]}
-
+    
     for epoch in range(config['epochs']):
         model.train()
 
@@ -579,8 +589,9 @@ def main(config_path='config.yaml'):
                     for g, w_g in static_weights.items(): # static_weights を使用
                         if g in group_grads_list:
                             # 対応するグループの勾配リストから勾配を取得
-                            grad_g_param = group_grads_list[g][param_idx]
-                            debiased_grad += w_g * grad_g_param.to(device)
+                            if param_idx < len(group_grads_list[g]):
+                                grad_g_param = group_grads_list[g][param_idx]
+                                debiased_grad += w_g * grad_g_param.to(device)
 
                     param.grad = debiased_grad
                     param_idx += 1
@@ -636,8 +647,9 @@ def main(config_path='config.yaml'):
                     for i, g in enumerate(group_keys):
                         w_g = dro_q_weights[i] # 動的な重みを使用
                         if g in group_grads_list:
-                            grad_g_param = group_grads_list[g][param_idx]
-                            debiased_grad += w_g * grad_g_param.to(device)
+                            if param_idx < len(group_grads_list[g]):
+                                grad_g_param = group_grads_list[g][param_idx]
+                                debiased_grad += w_g * grad_g_param.to(device)
                     
                     param.grad = debiased_grad
                     param_idx += 1
@@ -702,15 +714,12 @@ def main(config_path='config.yaml'):
                 return True
             return current_epoch in epoch_list # リストが指定されている場合
 
-        run_grad_gram = should_run('analyze_gradient_gram', 'gradient_gram_analysis_epochs')
-        run_grad_spectrum = should_run('analyze_gradient_gram_spectrum', 'gradient_gram_spectrum_analysis_epochs')
-        run_grad_norm_ratio = should_run('analyze_gradient_norm_ratio', 'gradient_norm_ratio_analysis_epochs')
         run_grad_basis = should_run('analyze_gradient_basis', 'gradient_basis_analysis_epochs')
-        run_prop1_terms = should_run('analyze_proposition1_terms', 'proposition1_terms_analysis_epochs')
+        run_gap_factors = should_run('analyze_gap_dynamics_factors', 'gap_dynamics_factors_analysis_epochs')
         run_jacobian_norm = should_run('analyze_jacobian_norm', 'jacobian_norm_analysis_epochs')
+        run_static_dynamic = should_run('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
 
-        run_any_analysis = run_grad_gram or run_grad_spectrum or run_grad_norm_ratio or \
-                           run_grad_basis or run_prop1_terms or run_jacobian_norm
+        run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic
 
         if run_any_analysis:
             print(f"\n{'='*25} CHECKPOINT ANALYSIS @ EPOCH {current_epoch} {'='*25}")
@@ -719,17 +728,15 @@ def main(config_path='config.yaml'):
             train_outputs, test_outputs = (None, None)
 
             temp_config = config.copy()
-            temp_config['analyze_gradient_gram'] = run_grad_gram
-            temp_config['analyze_gradient_gram_spectrum'] = run_grad_spectrum
-            temp_config['analyze_gradient_norm_ratio'] = run_grad_norm_ratio
             temp_config['analyze_gradient_basis'] = run_grad_basis
-            temp_config['analyze_proposition1_terms'] = run_prop1_terms
+            temp_config['analyze_gap_dynamics_factors'] = run_gap_factors
             temp_config['analyze_jacobian_norm'] = run_jacobian_norm
+            temp_config['analyze_static_dynamic_decomposition'] = run_static_dynamic
 
             analysis.run_all_analyses(
                 temp_config, current_epoch, all_target_layers, model, train_outputs, test_outputs,
                 X_train, y_train, a_train, X_test, y_test, a_test, analysis_histories,
-                optimizer.param_groups, history
+                history
             )
 
             if config.get('wandb', {}).get('enable', False):
@@ -739,20 +746,9 @@ def main(config_path='config.yaml'):
                         epoch_data = history_dict[current_epoch]
                         if isinstance(epoch_data, dict):
                             for sub_key, value in epoch_data.items():
-                                if isinstance(value, list):
-                                    # スペクトル分析の固有ベクトルなどはリストなので個別にログ
-                                    if 'eigenvector' in sub_key:
-                                         for i, v in enumerate(value):
-                                            analysis_log_metrics[f'analysis/{history_key}/{sub_key}_{i+1}'] = v
-                                    # 命題1の項も辞書の辞書なので個別対応
-                                    elif 'prop1_terms' in history_key:
-                                        analysis_log_metrics[f'analysis/{history_key}/{sub_key}'] = value
-                                    else:
-                                        # 他のリスト（例: 固有値）
-                                        for i, v in enumerate(value):
-                                            analysis_log_metrics[f'analysis/{history_key}/{sub_key}_{i+1}'] = v
-                                else:
-                                    analysis_log_metrics[f'analysis/{history_key}/{sub_key}'] = value
+                                # jacobian, basis, gap_factors, static_dynamic_decomp はすべて
+                                # スカラ値の辞書を返すため，単純にログ記録
+                                analysis_log_metrics[f'analysis/{history_key}/{sub_key}'] = value
                 if analysis_log_metrics:
                     analysis_log_metrics['epoch'] = current_epoch
                     wandb.log(analysis_log_metrics)

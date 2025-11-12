@@ -3,11 +3,11 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_gradient_basis"
+experiment_name: "wb_exp"
 dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
-loss_function: "mse"          # "logistic" or "mse"
-activation_function: "relu"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
-initialization_method: "mf"  # "SP", "NTP", "muP", "mf", "NTP_two_layer" (mfおよびNTP_two_layerは隠れ層1つのときのみ有効)
+loss_function: "logistic"          # "logistic" or "mse"
+activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
+initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: false
 device: "cuda"                # "cuda" or "cpu"
 
@@ -89,48 +89,47 @@ dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイ�
 # 解析・可視化設定
 # ------------------------------------------
 # 各種分析の実行エポック設定 (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
-gradient_gram_analysis_epochs:
-gradient_gram_spectrum_analysis_epochs:
-gradient_norm_ratio_analysis_epochs:
-gradient_basis_analysis_epochs:
-proposition1_terms_analysis_epochs:
+gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
+static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
 
-# 命題1の分析設定
-proposition1_terms:
+# 性能差ダイナミクス要因の分析設定
+gap_dynamics_factors:
   # 分析対象とするグループペア [g1, g2] のリスト
   group_pairs:
     - [[-1, 1], [-1, -1]]  # 少数派・多数派
     - [[1, -1], [-1, -1]]
     - [[ 1,  -1], [ 1, 1]]
 
-# 勾配ノルム比の分析設定
-gradient_norm_ratio_config:
-  # 分析対象とするグループペア [g_numerator, g_denominator] のリスト
+# 静的・動的分解の分析設定
+static_dynamic_decomposition:
+  # 分析対象とするグループペア [g_min, g_maj] のリスト
+  # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
   group_pairs:
-    - [[-1, -1], [-1, 1]]  # 多数派(y=-1) / 少数派(y=-1)
-    - [[ 1,  1], [ 1, -1]]  # 多数派(y= 1) / 少数派(y= 1)
+    # y=-1 のペア (min=(-1,1), maj=(-1,-1))
+    - [[-1, 1], [-1, -1]]
+    # y=+1 のペア (min=(1,-1), maj=(1,1))
+    - [[1, -1], [1, 1]]
 
 # 解析対象データセット ('train', 'test', 'both')
-analysis_target: 'train'
+analysis_target: 'both'
 jacobian_num_samples: 100    # ヤコビアンを計算するためのグループから使用するサンプル数
-gradient_gram_num_samples: null # 勾配グラム行列を計算するためのグループから使用するサンプル数 (null の場合は全サンプル使用)
+# グループ勾配計算 (Basis/GapFactors/StaticDynamic用) のサンプル数 (null の場合は全サンプル使用)
+gradient_gram_num_samples: null 
 show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
 
 # ---------------------------------
 # 解析の有効/無効フラグ
 # ---------------------------------
-analyze_gradient_gram: false
 analyze_jacobian_norm: true
-analyze_gradient_gram_spectrum: false
-analyze_gradient_norm_ratio: false
 analyze_gradient_basis: true
-analyze_proposition1_terms: true
+analyze_gap_dynamics_factors: true
+analyze_static_dynamic_decomposition: true
 
 # ---------------------------------
 # wandb設定
 # ---------------------------------
 wandb:
   enable: true
-  project: "sp_exp_gram_basis"
+  project: "sp_exp_test"
   entity: "mdl-tsukuba"

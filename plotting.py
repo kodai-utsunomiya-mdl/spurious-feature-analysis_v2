@@ -115,40 +115,6 @@ def plot_misclassification_rates(final_metrics_series, dataset_name, save_dir):
 # ==============================================================================
 # 分析結果の時系列プロット関数
 # ==============================================================================
-# 勾配グラム行列のプロット関数
-def plot_gradient_gram_evolution(history_train, history_test, save_dir):
-    if not history_train and not history_test: return
-    epochs = sorted(history_train.keys() if history_train else history_test.keys())
-    
-    group_keys = [(-1,-1), (-1,1), (1,-1), (1,1)]
-    maj_maj_keys = [f"G({y1},{a1})_vs_G({y2},{a2})" for (y1, a1), (y2, a2) in combinations(group_keys, 2) if y1==a1 and y2==a2]
-    min_min_keys = [f"G({y1},{a1})_vs_G({y2},{a2})" for (y1, a1), (y2, a2) in combinations(group_keys, 2) if y1!=a1 and y2!=a2]
-    maj_min_keys = [f"G({y1},{a1})_vs_G({y2},{a2})" for (y1, a1), (y2, a2) in combinations(group_keys, 2) if (y1==a1 and y2!=a2) or (y1!=a1 and y2==a2)]
-    
-    plot_configs = [
-        ('Majority-Majority', maj_maj_keys),
-        ('Minority-Minority', min_min_keys),
-        ('Majority-Minority', maj_min_keys)
-    ]
-
-    for title, keys in plot_configs:
-        fig, ax = plt.subplots(figsize=(12, 7))
-        fig.suptitle(f'Evolution of Gradient Gram Matrix ({title})', fontsize=16)
-        colors = plt.cm.jet(np.linspace(0, 1, len(keys)))
-
-        for i, key in enumerate(keys):
-            if history_train:
-                vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
-                ax.plot(epochs, vals, marker='o', markersize=3, linestyle='-', color=colors[i], label=f'{key} (Train)')
-            if history_test:
-                vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
-                ax.plot(epochs, vals, marker='x', markersize=3, linestyle='--', color=colors[i])
-
-        ax.set(xlabel='Epoch', ylabel='Inner Product (log)', yscale='symlog')
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        ax.grid(True, which="both", ls="--")
-        fig.tight_layout(rect=[0, 0, 0.85, 0.95])
-        _save_and_close(fig, save_dir, f'gradient_gram_{title.lower().replace("-", "_")}.png')
 
 # ヤコビアンノルムのプロット関数
 def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
@@ -190,11 +156,12 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
     _save_and_close(fig2, save_dir, 'jacobian_inner_products.png')
 
     # --- 幾何学的中心のメトリクス ---
-    delta_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('norm_Delta_')])
-    delta_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('dot_Delta_')])
-    delta_cosine_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('cosine_Delta_')])
-    paper_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_norm_sq_')])
-    paper_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_dot_')])
+    delta_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('norm_Delta_S') or k.startswith('norm_Delta_L')])
+    delta_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('dot_Delta_S_Delta_L')])
+    delta_cosine_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('cosine_Delta_S_Delta_L')])
+    paper_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_norm_sq_m_')])
+    paper_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_dot_m_A_m_Y')])
+
 
     # キーが存在する場合のみプロット
     if delta_norm_keys or delta_dot_keys or delta_cosine_keys or paper_norm_keys or paper_dot_keys:
@@ -202,11 +169,11 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
         num_plots = 3 # Norms, Dots/PaperTerms, Cosines
         fig3, axes3 = plt.subplots(num_plots, 1, figsize=(14, 7 * num_plots))
         if num_plots == 1: axes3 = [axes3] # Make iterable
-        fig3.suptitle('Evolution of Jacobian Geometric Center Metrics (Appendix A)', fontsize=16)
+        fig3.suptitle('Evolution of Jacobian Geometric Center Metrics (S/L)', fontsize=16)
 
         plot_idx = 0
 
-        # --- Delta C/L ノルム ---
+        # --- Delta S/L ノルム ---
         if delta_norm_keys:
             ax = axes3[plot_idx]
             colors = plt.cm.autumn(np.linspace(0, 1, len(delta_norm_keys)))
@@ -217,12 +184,12 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
                 if history_test:
                     vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
                     ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
-            ax.set(xlabel='Epoch', ylabel='Norm (log)', title='Geometric Center Norms (||ΔC||, ||ΔL||)', yscale='log')
+            ax.set(xlabel='Epoch', ylabel='Norm (log)', title='Geometric Center Norms (||ΔS||, ||ΔL||)', yscale='log')
             ax.legend(); ax.grid(True, which="both", ls="--")
             plot_idx += 1
 
-        # --- Delta C/L 内積 (論文の項含む) ---
-        all_dot_keys = delta_dot_keys + paper_dot_keys + paper_norm_keys # paper_norm_sq は dot とスケールが近い
+        # --- Delta S/L 内積 ---
+        all_dot_keys = delta_dot_keys + paper_dot_keys + paper_norm_keys
         if all_dot_keys:
             ax = axes3[plot_idx]
             colors = plt.cm.jet(np.linspace(0, 1, len(all_dot_keys)))
@@ -237,7 +204,7 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
             ax.legend(loc='center left', bbox_to_anchor=(1, 0.5)); ax.grid(True, which="both", ls="--")
             plot_idx += 1
 
-        # --- Delta C/L コサイン類似度 ---
+        # --- Delta S/L コサイン類似度 ---
         if delta_cosine_keys:
             ax = axes3[plot_idx]
             colors = plt.cm.winter(np.linspace(0, 1, len(delta_cosine_keys)))
@@ -248,124 +215,69 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
                 if history_test:
                     vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
                     ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[i], label=f'{key} (Test)')
-            ax.set(xlabel='Epoch', ylabel='Cosine Similarity', title='Geometric Center Alignment (cos(ΔC, ΔL))', ylim=(-1.05, 1.05))
+            ax.set(xlabel='Epoch', ylabel='Cosine Similarity', title='Geometric Center Alignment (cos(ΔS, ΔL))', ylim=(-1.05, 1.05))
             ax.legend(); ax.grid(True, which="both", ls="--")
             plot_idx += 1
         
         fig3.tight_layout(rect=[0, 0, 0.85, 0.96])
         _save_and_close(fig3, save_dir, 'jacobian_geometric_centers.png')
 
-
-# 勾配グラム行列のスペクトルプロット関数
-def plot_gradient_gram_spectrum_evolution(history_train, history_test, save_dir):
-    """勾配グラム行列の固有値と主固有ベクトルの成分の変遷をプロット"""
-    if not history_train and not history_test:
-        print("No gradient gram spectrum history to plot.")
-        return
+# ==============================================================================
+# 静的・動的分解 (項A, B, C) のプロット関数
+# ==============================================================================
+def plot_static_dynamic_decomposition(history_train, history_test, config, save_dir):
+    """
+    同じラベルを持つグループ間の性能差ダイナミクスの静的・動的分解 (項A, B, C) の
+    時間発展をプロットする
+    """
+    if not history_train and not history_test: return
     
     epochs = sorted(history_train.keys() if history_train else history_test.keys())
-    
-    fig, axes = plt.subplots(1, 3, figsize=(24, 7))
-    fig.suptitle('Evolution of Gradient Gram Matrix Spectrum', fontsize=16)
-
-    # --- 1. 固有値のプロット ---
-    ax1 = axes[0]
-    colors = plt.cm.viridis(np.linspace(0, 1, 4))
-    for i in range(4):
-        if history_train:
-            vals = [history_train.get(e, {}).get('eigenvalues', [np.nan]*4)[i] for e in epochs]
-            ax1.plot(epochs, vals, marker='o', markersize=3, linestyle='-', color=colors[i], label=f'λ_{i+1} (Train)')
-        if history_test:
-            vals = [history_test.get(e, {}).get('eigenvalues', [np.nan]*4)[i] for e in epochs]
-            ax1.plot(epochs, vals, marker='x', markersize=3, linestyle='--', color=colors[i], label=f'λ_{i+1} (Test)')
-    ax1.set(xlabel='Epoch', ylabel='Eigenvalue', title='Eigenvalues (λ₁ ≥ λ₂ ≥ λ₃ ≥ λ₄)', yscale='symlog', ylim_bottom=0)
-    ax1.legend()
-    ax1.grid(True, which="both", ls="--")
-
-    # --- 2. 主固有ベクトルの成分のプロット ---
-    ax2 = axes[1]
-    group_labels = ['$G_{(-1,-1)}$', '$G_{(-1,1)}$', '$G_{(1,-1)}$', '$G_{(1,1)}$']
-    for i in range(4):
-        if history_train:
-            vals = [history_train.get(e, {}).get('eigenvector1', [np.nan]*4)[i] for e in epochs]
-            ax2.plot(epochs, vals, marker='o', markersize=3, linestyle='-', color=colors[i], label=f'{group_labels[i]} (Train)')
-        if history_test:
-            vals = [history_test.get(e, {}).get('eigenvector1', [np.nan]*4)[i] for e in epochs]
-            ax2.plot(epochs, vals, marker='x', markersize=3, linestyle='--', color=colors[i], label=f'{group_labels[i]} (Test)')
-    ax2.set(xlabel='Epoch', ylabel='Component Value', title='Components of 1st Eigenvector (u₁)', ylim=(-1.05, 1.05))
-    ax2.legend()
-    ax2.grid(True, which="both", ls="--")
-
-    # --- 3. 2番目の固有ベクトルの成分のプロット ---
-    ax3 = axes[2]
-    for i in range(4):
-        if history_train:
-            vals = [history_train.get(e, {}).get('eigenvector2', [np.nan]*4)[i] for e in epochs]
-            ax3.plot(epochs, vals, marker='o', markersize=3, linestyle='-', color=colors[i], label=f'{group_labels[i]} (Train)')
-        if history_test:
-            vals = [history_test.get(e, {}).get('eigenvector2', [np.nan]*4)[i] for e in epochs]
-            ax3.plot(epochs, vals, marker='x', markersize=3, linestyle='--', color=colors[i], label=f'{group_labels[i]} (Test)')
-    ax3.set(xlabel='Epoch', ylabel='Component Value', title='Components of 2nd Eigenvector (u₂)', ylim=(-1.05, 1.05))
-    ax3.legend()
-    ax3.grid(True, which="both", ls="--")
-
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    _save_and_close(fig, save_dir, 'gradient_gram_spectrum_evolution.png')
-
-# 勾配ノルム比のプロット関数
-def plot_gradient_norm_ratio_evolution(history_train, history_test, save_dir):
-    """
-    設定ファイルで指定されたすべての勾配ノルム比の変遷をプロット
-    """
-    if not history_train and not history_test:
-        print("No gradient norm ratio history to plot.")
-        return
+    if not epochs: return
         
-    epochs = sorted(history_train.keys() if history_train else history_test.keys())
-    if not epochs:
-        print("No epochs found in gradient norm ratio history.")
-        return
-
-    # 履歴からプロット対象のキー (ratio_...) をすべて収集
-    all_keys = set()
-    # 最初の利用可能なエポックデータからキーを取得
-    if history_train:
-        first_epoch_data = history_train.get(epochs[0], {})
-        all_keys.update(first_epoch_data.keys())
-    if history_test:
-        first_epoch_data = history_test.get(epochs[0], {})
-        all_keys.update(first_epoch_data.keys())
+    first_epoch_data = history_train.get(epochs[0], {}) or history_test.get(epochs[0], {})
     
-    ratio_keys = sorted([k for k in all_keys if k.startswith('ratio_g(')])
-    
-    if not ratio_keys:
-        print("No 'ratio_g(...' keys found in gradient norm ratio history.")
-        return
+    # config からペア情報を取得
+    group_pairs_config = config.get('static_dynamic_decomposition', {}).get('group_pairs', [])
+    if not group_pairs_config: return
 
-    fig, ax = plt.subplots(figsize=(12, 7))
-    fig.suptitle('Evolution of Gradient Norm Ratios', fontsize=16)
-    
-    colors = plt.cm.jet(np.linspace(0, 1, len(ratio_keys)))
+    num_pairs = len(group_pairs_config)
+    fig, axes = plt.subplots(num_pairs, 1, figsize=(14, 7 * num_pairs), squeeze=False)
+    fig.suptitle('Evolution of Static/Dynamic Decomposition Terms (A, B, C)', fontsize=16)
 
-    for i, key in enumerate(ratio_keys):
-        # "ratio_g(-1, -1)_vs_g(-1, 1)" -> "g(-1, -1) / g(-1, 1)"
-        label_name = key.replace('ratio_', '').replace('_vs_', ' / ')
+    for i, pair in enumerate(group_pairs_config):
+        g_min_key = tuple(pair[0])
+        g_maj_key = tuple(pair[1])
+        pair_name = f"g_min_{g_min_key}_g_maj_{g_maj_key}"
         
-        if history_train:
-            vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
-            ax.plot(epochs, vals, marker='o', markersize=3, linestyle='-', color=colors[i], label=f'{label_name} (Train)')
-        if history_test:
-            vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
-            # TestはTrainと同じ色で破線
-            ax.plot(epochs, vals, marker='x', markersize=3, linestyle='--', color=colors[i], label=f'{label_name} (Test)')
+        ax = axes[i, 0]
+        
+        term_keys = [f'{pair_name}_TermA', f'{pair_name}_TermB', f'{pair_name}_TermC']
+        colors = ['r', 'g', 'b']
+        
+        for j, key in enumerate(term_keys):
+            if history_train:
+                vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                ax.plot(epochs, vals, marker='o', linestyle='-', color=colors[j], label=f'{key} (Train)')
+            if history_test:
+                vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                ax.plot(epochs, vals, marker='x', linestyle='--', color=colors[j], label=f'{key} (Test)')
 
-    ax.set(xlabel='Epoch', ylabel='Norm Ratio', yscale='log')
-    # 凡例が重ならないようにグラフの外側に配置
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    ax.grid(True, which="both", ls="--")
-    # 凡例スペースを確保
-    fig.tight_layout(rect=[0, 0, 0.8, 0.95])
-    _save_and_close(fig, save_dir, 'gradient_norm_ratio_evolution.png')
+        # 合計 (A+B+C) もプロット
+        if history_train:
+            vals_sum_train = [sum(history_train.get(e, {}).get(k, 0) for k in term_keys) for e in epochs]
+            ax.plot(epochs, vals_sum_train, marker='o', linestyle='-', color='k', label=f'{pair_name}_Sum(A+B+C) (Train)')
+        if history_test:
+            vals_sum_test = [sum(history_test.get(e, {}).get(k, 0) for k in term_keys) for e in epochs]
+            ax.plot(epochs, vals_sum_test, marker='x', linestyle='--', color='k', label=f'{pair_name}_Sum(A+B+C) (Test)')
+
+        ax.set(xlabel='Epoch', ylabel='Inner Product (symlog)', yscale='symlog',
+               title=f"Decomposition for Pair: min={g_min_key} vs maj={g_maj_key}")
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax.grid(True, which="both", ls="--")
+
+    fig.tight_layout(rect=[0, 0, 0.85, 0.96])
+    _save_and_close(fig, save_dir, 'static_dynamic_decomposition.png')
 
 
 # ==============================================================================
@@ -378,21 +290,19 @@ def plot_all_results(history_df, analysis_histories, layers, save_dir, config):
     
     plot_training_history(history_df, save_dir)
     plot_misclassification_rates(history_df.iloc[-1], config['dataset_name'], save_dir)
-
-    if config.get('analyze_gradient_gram', False):
-        plot_gradient_gram_evolution(analysis_histories['grad_gram_train'], analysis_histories['grad_gram_test'], save_dir)
+    
     if config.get('analyze_jacobian_norm', False):
-        plot_jacobian_norm_evolution(analysis_histories['jacobian_norm_train'], analysis_histories['jacobian_norm_test'], save_dir)
-        
-    if config.get('analyze_gradient_gram_spectrum', False):
-        plot_gradient_gram_spectrum_evolution(
-            analysis_histories['grad_gram_spectrum_train'],
-            analysis_histories['grad_gram_spectrum_test'],
+        plot_jacobian_norm_evolution(
+            analysis_histories.get('jacobian_norm_train', {}), 
+            analysis_histories.get('jacobian_norm_test', {}), 
             save_dir
         )
-    if config.get('analyze_gradient_norm_ratio', False):
-        plot_gradient_norm_ratio_evolution(
-            analysis_histories['grad_norm_ratio_train'],
-            analysis_histories['grad_norm_ratio_test'],
+
+    # 静的・動的分解のプロット
+    if config.get('analyze_static_dynamic_decomposition', False):
+        plot_static_dynamic_decomposition(
+            analysis_histories.get('static_dynamic_decomp_train', {}),
+            analysis_histories.get('static_dynamic_decomp_test', {}),
+            config,
             save_dir
         )
