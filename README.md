@@ -1,102 +1,110 @@
-# スプリアス相関下の勾配流とグループ間性能差の分析
+# Analysis of Gradient Flow and Group Performance Gaps under Spurious Correlations
 
-## 1. 概要
+## Overview
 
-スプリアス相関が存在する状況下での深層ニューラルネットワークの学習ダイナミクスを分析するための研究コード．
+This repository provides research code for analyzing the learning dynamics of deep neural networks in the presence of spurious correlations.
 
-主な目的は，訓練データに存在するバイアスが，学習の過程でどのようにしてグループ間（多数派・少数派）の性能差を生み出し，拡大・残存するかを理論的・実証的に解明すること．
+The main objective is to theoretically and empirically understand how biases in training data create, amplify, or maintain performance gaps between groups (e.g., majority and minority groups) during the learning process.
 
-## 2. 主な機能
+## Main Features
 
-* **データセット**: `ColoredMNIST` と `WaterBirds` に対応．
-* **特徴抽出**:
-    * 生のピクセルデータ，または事前学習済みモデルから抽出した特徴量の上でMLPを学習させることが可能．
-    * 特徴抽出器として `ResNet18/50`，`ViT_B_16`，および `DINOv2`（`S`, `B`, `L`, `G`）の各バリアントをサポート．
-    * `ResNet` や `ViT`/`DINOv2` の任意の中間ブロックから特徴を抽出可能．
-* **学習手法**:
-    * 標準的なERM ( `debias_method: "None"` )
-    * Importance Weighting（均一な目標分布，`v_inv`勾配流に対応） ( `debias_method: "IW_uniform"` )
-    * Group Distributionally Robust Optimization (GroupDRO) ( `debias_method: "GroupDRO"` )
-* **詳細な分析**:
-    * 学習中の任意のチェックポイントで `analysis.py` の詳細な分析（勾配基底，ヤコビアンノルム，静的・動的な分解など）を実行．
-* **ロギング**:
-    * 実験結果は `wandb`（Weights & Biases）にロギングされる．
+* **Datasets**: Supports `ColoredMNIST` and `WaterBirds`.
+* **Feature Extraction**:
+    * Enables training an MLP on either raw pixel data or features extracted from pre-trained models.
+    * Supports various feature extractors including `ResNet18/50`, `ViT_B_16`, and `DINOv2` variants (`S`, `B`,`L`, `G`).
+    * Allows feature extraction from any intermediate block of `ResNet` or `ViT`/`DINOv2`.
+* **Training Methods**:
+    * Standard ERM (`debias_method: "None"`)
+    * Importance Weighting (for uniform target distribution, corresponding to `v_inv` gradient flow) (`debias_method: "IW_uniform"`)
+    * Group Distributionally Robust Optimization (GroupDRO) (`debias_method: "GroupDRO"`)
+* **In-Depth Analysis**:
+    * Executes detailed analyses from `analysis.py` (e.g., gradient basis, Jacobian norms, static/dynamic decomposition) at any checkpoint during training.
+* **Logging**:
+    * Logs experiment results to `wandb` (Weights & Biases).
 
-## 3. セットアップ
+## Setup
 
-### a. 依存関係のインストール
-```bash
-uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
-````
+### a. Install Dependencies
 
-### b. データセットの準備
+    uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
+
+### b. Dataset Preparation
 
 #### ColoredMNIST
 
-`data_loader.py` により `./data` ディレクトリに自動的にダウンロードされる．
+Automatically downloaded to the `./data` directory by `data_loader.py`.
 
 #### WaterBirds
 
-WaterBirdsデータセットは，`wilds` ライブラリではなく，Kaggleからの手動ダウンロードが必要．
+> [!IMPORTANT]
+> The WaterBirds dataset requires manual download from Kaggle (it is not available via the `wilds` library).
+>
+> 1.  Go to the [Kaggle Waterbird dataset page](https.www.kaggle.com/datasets/bahardibaie/waterbird?resource=download).
+> 2.  Download `archive.zip`.
+> 3.  Create a `data/waterbirds_v1.0/` directory in the project root and place `archive.zip` there.
+>     * Final path should be: `data/waterbirds_v1.0/archive.zip`
+> 4.  On the first run, `data_loader.py` will automatically extract the zip file.
 
-1.  [KaggleのWaterbirdデータセットページ](https://www.kaggle.com/datasets/bahardibaie/waterbird?resource=download)にアクセス．
-2.  `archive.zip` をダウンロード．
-3.  プロジェクトルートに `data/waterbirds_v1.0/` ディレクトリを作成し，そこに `archive.zip` を配置．
-      * 最終的なパス: `data/waterbirds_v1.0/archive.zip`
-4.  初回実行時に，`data_loader.py` が自動的にzipファイルを展開する．
+### c. DINOv2 Models
 
-### c. DINOv2モデル
+> [!NOTE]
+> When using `DINOv2` as a feature extractor, the model weights will be downloaded via `torch.hub` on the first run. An internet connection is required.
 
-`DINOv2` を特徴抽出器として使用する場合，初回実行時に `torch.hub` を介してモデルの重みがダウンロードされる．インターネット接続が必要．
+## Running Experiments
 
-## 4\. 実験の実行
+All experiment settings are managed in the `config.yaml` file.
 
-すべての実験設定は `config.yaml` ファイルで管理する．
+1.  **Edit Configuration**: Open `config.yaml` and set the desired dataset, model, training method, analysis flags, etc.
+2.  **Run the Main Script**:
 
-1.  **設定の編集**: `config.yaml` を開き，使用するデータセット，モデル，学習手法，分析フラグなどを設定．
-2.  **メインスクリプトの実行**:
-    ```bash
-    python main.py
-    ```
-3.  **結果の確認**:
-      * コンソールに進捗が出力される．
-      * 詳細なメトリクスは `wandb` のダッシュボードで確認できる．
-      * 最終的なプロットは，実行後に生成される `results/<experiment_name>_<timestamp>/` ディレクトリ内に保存される．
+        python main.py
 
-## 5\. `config.yaml` の設定
+3.  **Check Results**:
+    * Progress will be printed to the console.
+    * Detailed metrics can be viewed on the `wandb` dashboard.
+    * Final plots will be saved in the `results/<experiment_name>_<timestamp>/` directory generated after the run.
 
-`config.yaml` ファイルには，実験を制御するための主要なパラメータが含まれている．
+## `config.yaml` Settings
 
-### 基本設定
+The `config.yaml` file contains the primary parameters for controlling experiments.
 
-  * `experiment_name`: 実験名．`results` ディレクトリや `wandb` で使用される．
-  * `dataset_name`: `ColoredMNIST` または `WaterBirds` を指定．
-  * `loss_function`: `logistic` または `mse`．
-  * `device`: `cuda` または `cpu`．
+<details>
+<summary>Click to see all configuration options</summary>
 
-### 特徴抽出器 (`feature_extractor.py` 関連)
+### Basic Settings
 
-  * `use_feature_extractor`: `true` に設定すると，`feature_extractor_model_name` で指定されたモデルで特徴抽出を行う．`false` の場合，生のピクセルデータを入力とする．
-  * `feature_extractor_model_name`: `ResNet18`, `DINOv2_ViT_S_14` などを指定．【理論の観点から推奨: `DINOv2_ViT_G_14`】
-  * **ViT/DINOv2系**:
-      * `feature_extractor_vit_target_block`: 抽出するブロックのインデックス（-1は最終ブロック）．
-      * `feature_extractor_vit_aggregation_mode`: `cls_token`, `mean_pool_patch`, `mean_pool_all` から選択．
-  * **ResNet系**:
-      * `feature_extractor_resnet_intermediate_layer`: `avgpool`, `layer3`, `layer4` から選択．
+* `experiment_name`: Name of the experiment. Used for `results` directory and `wandb`.
+* `dataset_name`: Specify `ColoredMNIST` or `WaterBirds`.
+* `loss_function`: `logistic` or `mse`.
+* `device`: `cuda` or `cpu`.
 
-### モデル (`model.py` 関連)
+### Feature Extractor (`feature_extractor.py`)
 
-  * `num_hidden_layers`, `hidden_dim`: 特徴量の上で学習するMLPの構造．
-  * `initialization_method`: `muP` または `NTP` を指定．
+* `use_feature_extractor`: If `true`, extracts features using the model specified in `feature_extractor_model_name`. If `false`, uses raw pixel data as input.
+* `feature_extractor_model_name`: Specify `ResNet18`, `DINOv2_ViT_S_14`, etc.
+    > [!TIP]
+    > Recommendation for theoretical analysis: `DINOv2_ViT_G_14`
+* **ViT/DINOv2**:
+    * `feature_extractor_vit_target_block`: Index of the block to extract from (-1 for the last block).
+    * `feature_extractor_vit_aggregation_mode`: Select from `cls_token`, `mean_pool_patch`, `mean_pool_all`.
+* **ResNet**:
+    * `feature_extractor_resnet_intermediate_layer`: Select from `avgpool`, `layer3`, `layer4`.
 
-### 学習 (`trainer.py` 関連)
+### Model (`model.py`)
 
-  * `epochs`: 総エポック数．
-  * `debias_method`: `None` (ERM), `IW_uniform` (v\_inv勾配流), `GroupDRO` から選択．
-  * `dro_eta_q`: GroupDROのグループ重み `q` の更新ステップサイズ．
+* `num_hidden_layers`, `hidden_dim`: Structure of the MLP trained on the features.
+* `initialization_method`: Specify `muP` or `NTP`.
 
-### 解析 (`analysis.py` 関連)
+### Training (`trainer.py`)
 
-  * `analyze_jacobian_norm`, `analyze_gradient_basis`, `analyze_gap_dynamics_factors`, `analyze_static_dynamic_decomposition`: これらのフラグを `true` にすると，対応する詳細な分析が実行される．
-  * `..._analysis_epochs`: `null`（またはキーを省略）の場合，毎エポック分析を実行する．`[10, 100, 1000]` のようにリストを指定すると，該当エポックでのみ分析を実行する．
-  * その他．
+* `epochs`: Total number of epochs.
+* `debias_method`: Select from `None` (ERM), `IW_uniform` (v\_inv gradient flow), `GroupDRO`.
+* `dro_eta_q`: Step size (learning rate) for updating GroupDRO group weights `q`.
+
+### Analysis (`analysis.py`)
+
+* `analyze_jacobian_norm`, `analyze_gradient_basis`, `analyze_gap_dynamics_factors`, `analyze_static_dynamic_decomposition`: If `true`, the corresponding detailed analysis will be executed.
+* `..._analysis_epochs`: If `null` (or key omitted), runs analysis every epoch. If a list is specified (e.g., `[10, 100, 1000]`), runs analysis only at those epochs.
+* Others.
+
+</details>
