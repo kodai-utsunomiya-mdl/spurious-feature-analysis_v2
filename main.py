@@ -237,6 +237,11 @@ def main(config_path='config.yaml'):
     # 3. データセットの準備
     print("\n--- 1. Preparing Dataset ---")
     
+    # [★ 変更点 1: キャッシュディレクトリの準備]
+    CACHE_DIR = config.get('features_cache_dir', 'features_cache') # config.yaml に 'features_cache_dir' を追加可能
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    print(f"Using feature cache directory: {CACHE_DIR}")
+
     # --- 特徴抽出器のセットアップ (configに応じて) ---
     feature_extractor = None
     # configから設定を読み込む
@@ -247,11 +252,80 @@ def main(config_path='config.yaml'):
     # MLPの入力次元を保持する変数
     input_dim_for_mlp = None 
 
+    # [★ 変更点 2: キャッシュファイル名生成ヘルパー]
+    def get_cache_filename(dataset_name, model_name, config, split):
+        """設定に基づいて一意なキャッシュファイル名を生成"""
+        name_parts = [dataset_name, model_name]
+        
+        # データセット固有のパラメータを追加
+        if dataset_name == 'ColoredMNIST':
+            if split == 'train':
+                name_parts.append(f"corr{config.get('train_correlation', 0.0)}")
+                name_parts.append(f"y{config.get('train_label_marginal', 0.0)}")
+                name_parts.append(f"a{config.get('train_attribute_marginal', 0.0)}")
+                name_parts.append(f"n{config.get('num_train_samples', 0)}")
+            else: # test
+                name_parts.append(f"corr{config.get('test_correlation', 0.0)}")
+                name_parts.append(f"y{config.get('test_label_marginal', 0.0)}")
+                name_parts.append(f"a{config.get('test_attribute_marginal', 0.0)}")
+                name_parts.append(f"n{config.get('num_test_samples', 0)}")
+        elif dataset_name == 'WaterBirds':
+            if split == 'train':
+                name_parts.append(f"n{config.get('num_train_samples', 0)}")
+            else: # test
+                name_parts.append(f"n{config.get('num_test_samples', 0)}")
+
+        # 特徴抽出器のパラメータを追加
+        if 'ResNet' in model_name:
+            name_parts.append(config.get('feature_extractor_resnet_intermediate_layer', 'avgpool'))
+            if config.get('feature_extractor_resnet_intermediate_layer', 'avgpool') != 'avgpool':
+                name_parts.append(f"pool{config.get('feature_extractor_resnet_pooling_output_size', 1)}")
+        elif 'ViT' in model_name:
+            name_parts.append(f"block{config.get('feature_extractor_vit_target_block', -1)}")
+            name_parts.append(config.get('feature_extractor_vit_aggregation_mode', 'cls_token'))
+        
+        name_parts.append(split) # 'train' or 'test'
+        # ファイル名に使えない文字を置換
+        filename = '_'.join(map(str, name_parts)).replace(' ', '_').replace('/', '_').replace('-', 'm')
+        # ハッシュ化の代わりに、長すぎる場合は切り詰める（より単純な方法）
+        if len(filename) > 100:
+             # シンプルなハッシュ（Python標準のhash）を使って短縮
+             hash_val = hash(filename)
+             filename = f"{filename[:80]}_{hash_val}"
+
+        return f"{filename}.pt"
+
+    # [★ 変更点 3: キャッシュパスの変数を初期化]
+    cache_path_train_X = None
+    cache_path_train_y = None
+    cache_path_train_a = None
+    cache_path_test_X = None
+    cache_path_test_y = None
+    cache_path_test_a = None
+
+
     if use_feature_extractor:
         print(f"Setting up feature extractor: {model_name}...")
         
-        # --- モデル名に基づいてロード ---
+        # [★ 変更点 4: キャッシュパスの生成]
+        # (configに基づいてパスを生成)
+        # X, y, a それぞれにキャッシュファイルを作成
+        base_name_train = get_cache_filename(config['dataset_name'], model_name, config, 'train')
+        base_name_test = get_cache_filename(config['dataset_name'], model_name, config, 'test')
         
+        cache_path_train_X = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_X.pt'))
+        cache_path_train_y = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_y.pt'))
+        cache_path_train_a = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_a.pt'))
+        
+        cache_path_test_X = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_X.pt'))
+        cache_path_test_y = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_y.pt'))
+        cache_path_test_a = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_a.pt'))
+
+        print(f"Train feature cache path (X): {cache_path_train_X}")
+        print(f"Test feature cache path (X): {cache_path_test_X}")
+
+        # --- モデル名に基づいてロード ---
+        # (L346 - L472: input_dim_for_mlp を計算するために、このブロックはキャッシュの有無に関わらず実行)
         if 'ResNet' in model_name:
             # --- 1. ResNet系 (ResNet18, ResNet50) ---
             
@@ -382,46 +456,110 @@ def main(config_path='config.yaml'):
         else:
             print("Using raw image pixels.")
 
-    if config['dataset_name'] == 'ColoredMNIST':
-        image_size = 28
+    # [★ 変更点 5: 特徴抽出の実行 or キャッシュのロード]
+    
+    # 5.1. キャッシュの存在確認
+    use_cache = (
+        use_feature_extractor and
+        cache_path_train_X is not None and
+        os.path.exists(cache_path_train_X) and
+        os.path.exists(cache_path_train_y) and
+        os.path.exists(cache_path_train_a) and
+        os.path.exists(cache_path_test_X) and
+        os.path.exists(cache_path_test_y) and
+        os.path.exists(cache_path_test_a)
+    )
 
-        train_y_bar = config.get('train_label_marginal', 0.0)
-        train_a_bar = config.get('train_attribute_marginal', 0.0)
-        test_y_bar = config.get('test_label_marginal', 0.0)
-        test_a_bar = config.get('test_attribute_marginal', 0.0)
+    if use_cache:
+        # --- 5.2. キャッシュが存在する場合 ---
+        try:
+            print(f"Loading features and labels from cache...")
+            X_train = torch.load(cache_path_train_X, map_location=torch.device('cpu')) # CPUにロード
+            y_train = torch.load(cache_path_train_y, map_location=torch.device('cpu'))
+            a_train = torch.load(cache_path_train_a, map_location=torch.device('cpu'))
+            X_test = torch.load(cache_path_test_X, map_location=torch.device('cpu')) # CPUにロード
+            y_test = torch.load(cache_path_test_y, map_location=torch.device('cpu'))
+            a_test = torch.load(cache_path_test_a, map_location=torch.device('cpu'))
+            
+            print("Successfully loaded features and labels from cache.")
+            print(f"Feature dimensions from cache: Train={X_train.shape}, Test={X_test.shape}")
+            
+            # feature_extractor はもう不要なのでメモリ解放
+            if feature_extractor is not None:
+                del feature_extractor
+                feature_extractor = None
 
-        X_train, y_train, a_train = data_loader.get_colored_mnist(
-            num_samples=config['num_train_samples'],
-            correlation=config['train_correlation'],
-            label_marginal=train_y_bar,
-            attribute_marginal=train_a_bar,
-            train=True
-        )
-        X_test, y_test, a_test = data_loader.get_colored_mnist(
-            num_samples=config['num_test_samples'],
-            correlation=config['test_correlation'],
-            label_marginal=test_y_bar,
-            attribute_marginal=test_a_bar,
-            train=False
-        )
-
-    elif config['dataset_name'] == 'WaterBirds':
-        image_size = 224
-        X_train, y_train, a_train, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
-            num_train=config['num_train_samples'], num_test=config['num_test_samples'], image_size=image_size
-        )
+        except Exception as e:
+            print(f"Warning: Failed to load features from cache: {e}. Re-extracting...")
+            use_cache = False # ロード失敗
+            if feature_extractor is None:
+                 raise RuntimeError("Feature extractor was not set up, but cache load failed.") # 安全装置
+    
+    if not use_cache:
+        # --- 5.3. キャッシュが存在しない (or ロード失敗) の場合 ---
         
-    else:
-        raise ValueError(f"Unknown dataset: {config['dataset_name']}")
+        # 5.3.1. 生データをロード
+        if config['dataset_name'] == 'ColoredMNIST':
+            image_size = 28
 
-    # feature_extractorが設定されている場合 (use_feature_extractor=True の場合)，
-    # データセットの種類によらず特徴抽出を実行
-    if feature_extractor is not None:
-        print("--- Starting Feature Extraction (Train) ---")
-        X_train = extract_features(feature_extractor, X_train, device)
-        print("--- Starting Feature Extraction (Test) ---")
-        X_test = extract_features(feature_extractor, X_test, device)
-        print(f"Feature dimensions after extraction: Train={X_train.shape}, Test={X_test.shape}")
+            train_y_bar = config.get('train_label_marginal', 0.0)
+            train_a_bar = config.get('train_attribute_marginal', 0.0)
+            test_y_bar = config.get('test_label_marginal', 0.0)
+            test_a_bar = config.get('test_attribute_marginal', 0.0)
+
+            X_train, y_train, a_train = data_loader.get_colored_mnist(
+                num_samples=config['num_train_samples'],
+                correlation=config['train_correlation'],
+                label_marginal=train_y_bar,
+                attribute_marginal=train_a_bar,
+                train=True
+            )
+            X_test, y_test, a_test = data_loader.get_colored_mnist(
+                num_samples=config['num_test_samples'],
+                correlation=config['test_correlation'],
+                label_marginal=test_y_bar,
+                attribute_marginal=test_a_bar,
+                train=False
+            )
+
+        elif config['dataset_name'] == 'WaterBirds':
+            image_size = 224
+            X_train, y_train, a_train, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
+                num_train=config['num_train_samples'], num_test=config['num_test_samples'], image_size=image_size
+            )
+            
+        else:
+            raise ValueError(f"Unknown dataset: {config['dataset_name']}")
+
+        # 5.3.2. 特徴抽出 (必要な場合)
+        if use_feature_extractor:
+            if feature_extractor is None:
+                 raise RuntimeError("Feature extractor was not set up, but cache was not found.") # 安全装置
+            
+            print("--- Starting Feature Extraction (Train) ---")
+            X_train_features = extract_features(feature_extractor, X_train, device)
+            print("--- Starting Feature Extraction (Test) ---")
+            X_test_features = extract_features(feature_extractor, X_test, device)
+            print(f"Feature dimensions after extraction: Train={X_train_features.shape}, Test={X_test_features.shape}")
+            
+            # X_train, X_test を特徴量で上書き
+            X_train = X_train_features
+            X_test = X_test_features
+            
+            # 5.3.3. キャッシュに保存
+            try:
+                print(f"Saving features and labels to cache...")
+                torch.save(X_train, cache_path_train_X)
+                torch.save(y_train, cache_path_train_y)
+                torch.save(a_train, cache_path_train_a)
+                torch.save(X_test, cache_path_test_X)
+                torch.save(y_test, cache_path_test_y)
+                torch.save(a_test, cache_path_test_a)
+                print("Successfully saved features and labels to cache.")
+            except Exception as e_save:
+                print(f"Warning: Failed to save features to cache: {e_save}")
+        
+        # (use_feature_extractor=False の場合は、生データのまま進む)
 
 
     if config['show_and_save_samples']:
@@ -485,11 +623,22 @@ def main(config_path='config.yaml'):
     
     # --- input_dim の計算 (config に応じて) ---
     if use_feature_extractor:
-        # 自動計算した次元を使用
+        # [★ 変更点 6: input_dim_for_mlp の扱い]
+        # input_dim_for_mlp が設定されていない (キャッシュロードなどで) 場合、
+        # ロードした X_train の次元から復元する
+        if input_dim_for_mlp is None:
+             if X_train.dim() == 2: # (B, D)
+                 input_dim_for_mlp = X_train.shape[1]
+                 print(f"Using FEATURE input_dim (inferred from cached data): {input_dim_for_mlp}")
+             else:
+                 raise ValueError(f"Cached feature data has unexpected dimensions: {X_train.shape}")
+        
         if input_dim_for_mlp is None:
              raise ValueError("input_dim_for_mlp was not set correctly during feature extractor setup.")
         input_dim = input_dim_for_mlp
-        print(f"Using FEATURE input_dim (auto-detected): {input_dim}")
+        # (print文を1つに統合)
+        print(f"Using FEATURE input_dim: {input_dim}")
+        
     else:
         # 特徴抽出を使わない場合
         
@@ -701,6 +850,19 @@ def main(config_path='config.yaml'):
                 log_metrics[f'train_group_{i}_acc'] = train_metrics['group_accs'][i]
                 log_metrics[f'test_group_{i}_loss'] = test_metrics['group_losses'][i]
                 log_metrics[f'test_group_{i}_acc'] = test_metrics['group_accs'][i]
+            
+            # y=-1 の損失差 (少数派 - 多数派)
+            if not np.isnan(train_metrics['group_losses'][1]) and not np.isnan(train_metrics['group_losses'][0]):
+                log_metrics['train_loss_gap_y_neg1'] = train_metrics['group_losses'][1] - train_metrics['group_losses'][0]
+            if not np.isnan(test_metrics['group_losses'][1]) and not np.isnan(test_metrics['group_losses'][0]):
+                log_metrics['test_loss_gap_y_neg1'] = test_metrics['group_losses'][1] - test_metrics['group_losses'][0]
+            
+            # y=+1 の損失差 (少数派 - 多数派)
+            if not np.isnan(train_metrics['group_losses'][2]) and not np.isnan(train_metrics['group_losses'][3]):
+                log_metrics['train_loss_gap_y_pos1'] = train_metrics['group_losses'][2] - train_metrics['group_losses'][3]
+            if not np.isnan(test_metrics['group_losses'][2]) and not np.isnan(test_metrics['group_losses'][3]):
+                log_metrics['test_loss_gap_y_pos1'] = test_metrics['group_losses'][2] - test_metrics['group_losses'][3]
+
             wandb.log(log_metrics)
 
         # --- チェックポイント分析 ---

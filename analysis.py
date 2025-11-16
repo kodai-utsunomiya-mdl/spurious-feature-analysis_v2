@@ -391,16 +391,38 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
             group_norms_sq[(y, a)] = np.nan
             jacobian_results[key_name] = np.nan
 
-    # --- 2. 元のヤコビアン内積 ---
+    # --- 2. 元のヤコビアン内積とコサイン類似度 ---
     for (y1, a1), (y2, a2) in combinations(group_keys, 2):
         jac1_list = group_jacobians_list.get((y1, a1))
         jac2_list = group_jacobians_list.get((y2, a2))
-        key_name = f"dot_G({y1},{a1})_vs_G({y2},{a2})"
+        
+        key_name_dot = f"dot_G({y1},{a1})_vs_G({y2},{a2})"
+        key_name_cosine = f"cosine_G({y1},{a1})_vs_G({y2},{a2})" # <-- 修正点: キー名定義
+        
         if jac1_list is not None and jac2_list is not None:
+            # 内積を計算
             inner_prod = _standard_inner_product(jac1_list, jac2_list)
-            jacobian_results[key_name] = inner_prod
+            jacobian_results[key_name_dot] = inner_prod
+            
+            # --- 修正点: コサイン類似度の計算を追加 ---
+            norm1_sq = group_norms_sq.get((y1, a1), np.nan)
+            norm2_sq = group_norms_sq.get((y2, a2), np.nan)
+            
+            if not np.isnan(norm1_sq) and not np.isnan(norm2_sq):
+                norm1 = np.sqrt(norm1_sq)
+                norm2 = np.sqrt(norm2_sq)
+                if norm1 > 1e-9 and norm2 > 1e-9:
+                    cosine_sim = inner_prod / (norm1 * norm2)
+                    jacobian_results[key_name_cosine] = cosine_sim
+                else:
+                    jacobian_results[key_name_cosine] = np.nan # ゼロノルムの場合
+            else:
+                jacobian_results[key_name_cosine] = np.nan # ノルムが計算できなかった場合
+            # --- 修正終了 ---
+            
         else:
-            jacobian_results[key_name] = np.nan
+            jacobian_results[key_name_dot] = np.nan
+            jacobian_results[key_name_cosine] = np.nan # <-- 修正点: nan を設定
     
     # --- 3. 幾何学的中心ベクトルの分析 ---
     # Phi_g = Φ̄_g (グループgのヤコビアンの期待値)

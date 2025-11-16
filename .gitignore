@@ -1,5 +1,6 @@
 data/
 results/
 __pycache__/
+features_cache/
 results/
 wandb/
