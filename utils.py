@@ -7,6 +7,26 @@ import matplotlib.pyplot as plt
 import os
 from torch.utils.data import TensorDataset, DataLoader
 
+def get_loss_function(scores, y_batch, loss_type='mse', reduction='mean'):
+    """ 
+    損失関数を計算 
+    reduction='mean': 損失の平均値を返す
+    reduction='none': 各サンプルごとの損失を返す
+    """
+    if loss_type == 'logistic':
+        losses = F.softplus(-y_batch * scores)
+    elif loss_type == 'mse':
+        losses = (scores - y_batch).pow(2)
+    else:
+        raise ValueError(f"Unknown loss_function: {loss_type}")
+    
+    if reduction == 'mean':
+        return losses.mean()
+    elif reduction == 'none':
+        return losses
+    else:
+        raise ValueError(f"Unknown reduction: {reduction}")
+
 def l2_normalize_images(images_tensor):
     """ バッチ内の各画像をL2ノルムが1になるように正規化 """
     original_shape = images_tensor.shape
@@ -114,12 +134,7 @@ def evaluate_model(model, X_data, y_data, a_data, device, loss_function, eval_ba
     a_01 = ((a_data + 1) / 2).long()
     group_indices = 2 * y_01 + a_01
 
-    if loss_function == 'logistic':
-        losses = F.softplus(-y_data_eval * scores)
-    elif loss_function == 'mse':
-        losses = (scores - y_data_eval).pow(2)
-    else:
-        raise ValueError(f"Unknown loss_function: {loss_function}")
+    losses = get_loss_function(scores, y_data_eval, loss_function, reduction='none')
 
     avg_loss = losses.mean().item()
     preds = torch.sign(scores)

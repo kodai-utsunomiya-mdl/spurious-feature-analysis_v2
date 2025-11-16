@@ -12,8 +12,6 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
 import wandb
-import torchvision.models as models
-from torchvision import transforms
 
 # スクリプトをインポート
 import data_loader
@@ -21,183 +19,8 @@ import utils
 import model as model_module
 import analysis
 import plotting
-
-# torchvision.models.feature_extraction をインポート
-try:
-    from torchvision.models.feature_extraction import create_feature_extractor
-except ImportError:
-    print("Warning: torchvision.models.feature_extraction not found. "
-          "ViT intermediate layer extraction might not work.")
-    create_feature_extractor = None
-
-# --- DINOv2 / ViT の両方に対応する汎用ラッパー ---
-class ViTFeatureExtractor(torch.nn.Module):
-    def __init__(self, vit_model, model_name, target_block_index=-1, aggregation_mode='cls_token'):
-        """
-        ViT/DINOv2 モデルから指定されたブロックの特徴を抽出するラッパー
-        Args:
-            vit_model (nn.Module): ベースとなる ViT または DINOv2 モデル
-            model_name (str): モデル名 ('ViT_B_16', 'DINOv2_ViT_S_14' など)
-            target_block_index (int): 抽出対象のブロックインデックス (0-based). -1 は最後のブロック.
-            aggregation_mode (str): 集約方法 ('cls_token', 'mean_pool_patch', 'mean_pool_all')
-        """
-        super().__init__()
-        self.vit_model = vit_model
-        self.model_name = model_name
-        self.aggregation_mode = aggregation_mode
-
-        # --- モデルタイプとブロック構造の特定 ---
-        if 'DINOv2' in self.model_name:
-            self.model_type = 'dinov2'
-            self.blocks = self.vit_model.blocks
-            self.num_blocks = len(self.blocks)
-        elif 'ViT' in self.model_name:
-            self.model_type = 'torchvision'
-            self.blocks = self.vit_model.encoder.layers
-            self.num_blocks = len(self.blocks)
-        else:
-            raise ValueError(f"Unknown ViT model name: {model_name}. Cannot determine structure.")
-
-        # --- ターゲットブロックのインデックスを解決 ---
-        if target_block_index < 0:
-            self.target_block_index = self.num_blocks + target_block_index
-        else:
-            self.target_block_index = target_block_index
-
-        if not (0 <= self.target_block_index < self.num_blocks):
-            raise ValueError(f"Invalid target_block_index: {target_block_index}. "
-                             f"Model has {self.num_blocks} blocks (0 to {self.num_blocks-1}).")
-
-        self.is_last_block = (self.target_block_index == self.num_blocks - 1)
-
-        print(f"ViTFeatureExtractor ({self.model_type}) configured:")
-        print(f"  Target Block Index: {self.target_block_index} "
-              f"({'Last Block' if self.is_last_block else 'Intermediate Block'})")
-        print(f"  Aggregation Mode: {self.aggregation_mode}")
-
-        # --- 抽出方法のセットアップ ---
-        
-        # DINOv2 の場合
-        if self.model_type == 'dinov2':
-            # 最後のブロック かつ 'cls_token' or 'mean_pool_patch' の場合
-            if self.is_last_block and (self.aggregation_mode in ['cls_token', 'mean_pool_patch']):
-                self.extraction_method = 'dinov2_forward_features'
-                print(f"  Using DINOv2 'forward_features()' (final norm output)")
-            
-            # それ以外 (途中のブロック or mean_pool_all) の場合
-            else:
-                self.extraction_method = 'dinov2_get_intermediate'
-                # 'get_intermediate_layers' は 1-indexed (n=1 は最後のブロック)
-                self.n_blocks_to_return = self.num_blocks - self.target_block_index
-                print(f"  Using DINOv2 'get_intermediate_layers(n={self.n_blocks_to_return})' (pre-norm output)")
-
-        # torchvision ViT の場合
-        elif self.model_type == 'torchvision':
-            if create_feature_extractor is None:
-                raise ImportError("torchvision.models.feature_extraction is required for ViT intermediate layers.")
-            
-            self.extraction_method = 'torchvision_feature_extractor'
-            
-            # ターゲットノード名を決定
-            if self.is_last_block:
-                # 最後のブロックの場合，encoder.ln の出力
-                target_node_name = 'encoder.ln'
-            else:
-                # 途中のブロック (e.g., block 10)
-                target_node_name = f'encoder.layers.encoder_layer_{self.target_block_index}.add_1'
-            
-            print(f"  Using torchvision.feature_extraction, targeting node: '{target_node_name}'")
-            self.feature_extractor = create_feature_extractor(
-                self.vit_model, return_nodes=[target_node_name]
-            )
-            self.target_node_name = target_node_name
-
-
-    def forward(self, x):
-        block_output = None
-
-        # --- 1. 特徴テンソル (N, 1+L, D) を取得 ---
-        if self.extraction_method == 'dinov2_forward_features':
-            # DINOv2 の最終層 (正規化済み)
-            outputs_dict = self.vit_model.forward_features(x)
-            if self.aggregation_mode == 'cls_token':
-                return outputs_dict['x_norm_clstoken'] # (N, D)
-            elif self.aggregation_mode == 'mean_pool_patch':
-                return outputs_dict['x_norm_patchtokens'].mean(dim=1) # (N, D)
-            # (このパスでは mean_pool_all はサポートされない)
-        
-        elif self.extraction_method == 'dinov2_get_intermediate':
-            # DINOv2 の中間層 (正規化なし)
-            intermediate_list = self.vit_model.get_intermediate_layers(
-                x, n=self.n_blocks_to_return, return_class_token=False
-            )
-            block_output = intermediate_list[0] # (N, 1+L, D)
-
-        elif self.extraction_method == 'torchvision_feature_extractor':
-            # torchvision ViT の指定層
-            features_dict = self.feature_extractor(x)
-            block_output = features_dict[self.target_node_name] # (N, 1+L, D)
-        
-        else:
-            raise RuntimeError("Unknown extraction method.")
-
-        # --- 2. Aggregation (block_output が (N, 1+L, D) の場合) ---
-        if block_output is None:
-            raise RuntimeError("Feature tensor was not extracted.")
-
-        if self.aggregation_mode == 'cls_token':
-            # [0] 番目が [CLS] トークン
-            return block_output[:, 0, :]
-        elif self.aggregation_mode == 'mean_pool_patch':
-            # [1:] 番目がパッチトークン
-            return block_output[:, 1:, :].mean(dim=1)
-        elif self.aggregation_mode == 'mean_pool_all':
-            # [CLS] もパッチも全部平均
-            return block_output.mean(dim=1)
-        else:
-            raise ValueError(f"Unknown vit_aggregation_mode: {self.aggregation_mode}")
-
-
-# --- 特徴抽出ヘルパー関数 ---
-def extract_features(extractor, X_data, device, batch_size=64):
-    """ 
-    OOMを避けるためミニバッチで特徴抽出を実行
-    X_data は (N, C, H, W) の [0, 1] 画像テンソルと仮定
-    """
-    print(f"Extracting features from {len(X_data)} samples using device {device}...")
-    extractor.eval()
-    extractor.to(device)
-    features_list = []
-    
-    # ResNet, ViT, DINOv2 はいずれもImageNet正規化を期待するため，ここで適用
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-
-    dataset = TensorDataset(X_data)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    
-    with torch.no_grad():
-        for i, (batch,) in enumerate(loader):
-            batch = batch.to(device)
-            # 正規化を適用
-            batch_normalized = normalize(batch)
-            features = extractor(batch_normalized)
-            features_list.append(features.cpu())
-            if i % 50 == 0 and i > 0:
-                print(f"  ... processed {i * batch_size} / {len(X_data)} samples")
-                
-    print("Feature extraction complete.")
-    return torch.cat(features_list, dim=0)
-
-# --- ヘルパー関数 ---
-def get_loss_function(scores, y_batch, loss_type='mse'):
-    """ 損失関数を計算 """
-    if loss_type == 'logistic':
-        return F.softplus(-y_batch * scores).mean()
-    elif loss_type == 'mse':
-        return F.mse_loss(scores, y_batch)
-    else:
-        raise ValueError(f"Unknown loss_function: {loss_type}")
+import feature_extractor
+import trainer
 
 def main(config_path='config.yaml'):
     # 1. 設定ファイルの読み込み
@@ -243,56 +66,15 @@ def main(config_path='config.yaml'):
     print(f"Using feature cache directory: {CACHE_DIR}")
 
     # --- 特徴抽出器のセットアップ (configに応じて) ---
-    feature_extractor = None
+    # feature_extractor.py に分離
+    feat_extractor_model = None
+    input_dim_for_mlp = None 
+    
     # configから設定を読み込む
     use_feature_extractor = config.get('use_feature_extractor', False)
+    
     # モデル名を取得
     model_name = config.get('feature_extractor_model_name', 'ResNet18') 
-    
-    # MLPの入力次元を保持する変数
-    input_dim_for_mlp = None 
-
-    # キャッシュファイル名生成ヘルパー
-    def get_cache_filename(dataset_name, model_name, config, split):
-        """設定に基づいて一意なキャッシュファイル名を生成"""
-        name_parts = [dataset_name, model_name]
-        
-        # データセット固有のパラメータを追加
-        if dataset_name == 'ColoredMNIST':
-            if split == 'train':
-                name_parts.append(f"corr{config.get('train_correlation', 0.0)}")
-                name_parts.append(f"y{config.get('train_label_marginal', 0.0)}")
-                name_parts.append(f"a{config.get('train_attribute_marginal', 0.0)}")
-                name_parts.append(f"n{config.get('num_train_samples', 0)}")
-            else: # test
-                name_parts.append(f"corr{config.get('test_correlation', 0.0)}")
-                name_parts.append(f"y{config.get('test_label_marginal', 0.0)}")
-                name_parts.append(f"a{config.get('test_attribute_marginal', 0.0)}")
-                name_parts.append(f"n{config.get('num_test_samples', 0)}")
-        elif dataset_name == 'WaterBirds':
-            if split == 'train':
-                name_parts.append(f"n{config.get('num_train_samples', 0)}")
-            else: # test
-                name_parts.append(f"n{config.get('num_test_samples', 0)}")
-
-        # 特徴抽出器のパラメータを追加
-        if 'ResNet' in model_name:
-            name_parts.append(config.get('feature_extractor_resnet_intermediate_layer', 'avgpool'))
-            if config.get('feature_extractor_resnet_intermediate_layer', 'avgpool') != 'avgpool':
-                name_parts.append(f"pool{config.get('feature_extractor_resnet_pooling_output_size', 1)}")
-        elif 'ViT' in model_name:
-            name_parts.append(f"block{config.get('feature_extractor_vit_target_block', -1)}")
-            name_parts.append(config.get('feature_extractor_vit_aggregation_mode', 'cls_token'))
-        
-        name_parts.append(split) # 'train' or 'test'
-        # ファイル名に使えない文字を置換
-        filename = '_'.join(map(str, name_parts)).replace(' ', '_').replace('/', '_').replace('-', 'm')
-        if len(filename) > 100:
-             # シンプルなハッシュ（Python標準のhash）を使って短縮
-             hash_val = hash(filename)
-             filename = f"{filename[:80]}_{hash_val}"
-
-        return f"{filename}.pt"
 
     # キャッシュパスの変数を初期化
     cache_path_train_X = None
@@ -304,13 +86,12 @@ def main(config_path='config.yaml'):
 
 
     if use_feature_extractor:
-        print(f"Setting up feature extractor: {model_name}...")
+        # セットアップ関数を呼び出し
+        feat_extractor_model, input_dim_for_mlp = feature_extractor.setup_feature_extractor(config)
         
-        # キャッシュパスの生成
-        # (configに基づいてパスを生成)
-        # X, y, a それぞれにキャッシュファイルを作成
-        base_name_train = get_cache_filename(config['dataset_name'], model_name, config, 'train')
-        base_name_test = get_cache_filename(config['dataset_name'], model_name, config, 'test')
+        # キャッシュパスの生成 (feature_extractor.py から呼び出し)
+        base_name_train = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'train')
+        base_name_test = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'test')
         
         cache_path_train_X = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_X.pt'))
         cache_path_train_y = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_y.pt'))
@@ -322,132 +103,6 @@ def main(config_path='config.yaml'):
 
         print(f"Train feature cache path (X): {cache_path_train_X}")
         print(f"Test feature cache path (X): {cache_path_test_X}")
-
-        # --- モデル名に基づいてロード ---
-        # (L346 - L472: input_dim_for_mlp を計算するために，このブロックはキャッシュの有無に関わらず実行)
-        if 'ResNet' in model_name:
-            # --- 1. ResNet系 (ResNet18, ResNet50) ---
-            
-            # (ResNet系 固有の設定)
-            intermediate_layer_name = config.get('feature_extractor_resnet_intermediate_layer', 'avgpool')
-            pool_output_size = config.get('feature_extractor_resnet_pooling_output_size', 1)
-            
-            if model_name == 'ResNet18':
-                resnet_base = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-                base_output_dim = 512 # fc.in_features
-                layer3_channels = 256
-                layer4_channels = 512
-            elif model_name == 'ResNet50':
-                resnet_base = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
-                base_output_dim = 2048 # fc.in_features
-                layer3_channels = 1024
-                layer4_channels = 2048
-            else:
-                raise ValueError(f"Unknown ResNet model: {model_name}")
-
-            if intermediate_layer_name == 'avgpool':
-                print(f"Using standard {model_name} output (after avgpool, {base_output_dim} dim)")
-                resnet_base.fc = torch.nn.Identity()
-                feature_extractor = torch.nn.Sequential(resnet_base)
-                input_dim_for_mlp = base_output_dim
-
-            else:
-                print(f"Using intermediate feature map from: '{intermediate_layer_name}'")
-                print(f"Using AdaptiveAvgPool with output size: ({pool_output_size}, {pool_output_size})")
-
-                modules_list = [
-                    resnet_base.conv1, resnet_base.bn1, resnet_base.relu, resnet_base.maxpool,
-                    resnet_base.layer1, resnet_base.layer2,
-                ]
-                
-                if intermediate_layer_name == 'layer3':
-                    modules_list.append(resnet_base.layer3)
-                    intermediate_channels = layer3_channels
-                elif intermediate_layer_name == 'layer4':
-                    modules_list.append(resnet_base.layer3)
-                    modules_list.append(resnet_base.layer4)
-                    intermediate_channels = layer4_channels
-                else:
-                    raise ValueError(f"Unsupported 'feature_extractor_resnet_intermediate_layer' for ResNet: {intermediate_layer_name}. "
-                                     f"Must be 'avgpool', 'layer3', or 'layer4'.")
-
-                backbone = torch.nn.Sequential(*modules_list)
-                adaptive_pool = torch.nn.AdaptiveAvgPool2d((pool_output_size, pool_output_size))
-                flatten = torch.nn.Flatten()
-                pooled_dim = intermediate_channels * (pool_output_size ** 2)
-
-                feature_extractor = torch.nn.Sequential(backbone, adaptive_pool, flatten)
-                input_dim_for_mlp = pooled_dim
-                
-                print(f"Extractor: {model_name}-to-{intermediate_layer_name} ({intermediate_channels} channels) -> "
-                      f"AdaptiveAvgPool({pool_output_size}x{pool_output_size}) -> Flatten -> "
-                      f"(output dim: {input_dim_for_mlp})")
-
-        # --- 2. ViT/DINOv2系 ---
-        elif 'ViT' in model_name:
-            print(f"Using {model_name}.")
-            
-            # --- ViT/DINOv2 固有の設定を読み込み ---
-            target_block = config.get('feature_extractor_vit_target_block', -1)
-            aggregation_mode = config.get('feature_extractor_vit_aggregation_mode', 'cls_token')
-            
-            print(f"  ViT/DINOv2 Settings: target_block={target_block}, aggregation_mode='{aggregation_mode}'")
-            print("  (ResNet intermediate layer/pooling settings are ignored.)")
-
-            base_model = None
-            output_dim = 0
-            
-            if model_name == 'ViT_B_16':
-                base_model = models.vit_b_16(weights=models.ViT_B_16_Weights.IMAGENET1K_V1)
-                output_dim = base_model.heads.head.in_features # 768
-            
-            elif 'DINOv2' in model_name:
-                # DINOv2 ファミリーのモデル名と torch.hub 名，出力次元のマッピング
-                dinov2_model_map = {
-                    'DINOv2_ViT_S_14': ('dinov2_vits14', 384),
-                    'DINOv2_ViT_B_14': ('dinov2_vitb14', 768),
-                    'DINOv2_ViT_L_14': ('dinov2_vitl14', 1024),
-                    'DINOv2_ViT_G_14': ('dinov2_vitg14', 1536),
-                }
-                
-                if model_name not in dinov2_model_map:
-                    raise ValueError(f"Unknown DINOv2 model: {model_name}. "
-                                     f"Supported DINOv2 models are: {list(dinov2_model_map.keys())}")
-                
-                hub_model_name, model_output_dim = dinov2_model_map[model_name]
-                
-                try:
-                    # torch.hub.set_dir('.') # 保存場所をカレントディレクトリに指定したい場合
-                    base_model = torch.hub.load('facebookresearch/dinov2', hub_model_name)
-                    output_dim = model_output_dim # マッピングから取得した次元
-                except Exception as e:
-                    print(f"Failed to load DINOv2 model '{hub_model_name}' from torch.hub: {e}")
-                    print("Please ensure you have an internet connection and 'torch.hub' can access GitHub.")
-                    raise e
-            else:
-                # 'ViT' を含むが上記で処理されなかった場合
-                raise ValueError(f"Unknown ViT/DINOv2 model: {model_name}")
-
-            # --- 汎用ラッパーで包む ---
-            feature_extractor = ViTFeatureExtractor(
-                base_model, 
-                model_name=model_name,
-                target_block_index=target_block,
-                aggregation_mode=aggregation_mode
-            )
-            
-            input_dim_for_mlp = output_dim
-            print(f"Extractor: {model_name} wrapped by ViTFeatureExtractor (output dim: {input_dim_for_mlp})")
-        
-        else:
-            raise ValueError(f"Unknown 'feature_extractor_model_name': {model_name}")
-
-        
-        # 特徴抽出器のパラメータはすべて凍結
-        for param in feature_extractor.parameters():
-            param.requires_grad = False
-            
-        print(f"All parameters of {model_name} backbone are frozen.")
     
     elif not use_feature_extractor:
         if config['dataset_name'] == 'WaterBirds':
@@ -484,14 +139,14 @@ def main(config_path='config.yaml'):
             print(f"Feature dimensions from cache: Train={X_train.shape}, Test={X_test.shape}")
             
             # feature_extractor はもう不要なのでメモリ解放
-            if feature_extractor is not None:
-                del feature_extractor
-                feature_extractor = None
+            if feat_extractor_model is not None:
+                del feat_extractor_model
+                feat_extractor_model = None
 
         except Exception as e:
             print(f"Warning: Failed to load features from cache: {e}. Re-extracting...")
             use_cache = False # ロード失敗
-            if feature_extractor is None:
+            if feat_extractor_model is None:
                  raise RuntimeError("Feature extractor was not set up, but cache load failed.") # 安全装置
     
     if not use_cache:
@@ -532,13 +187,14 @@ def main(config_path='config.yaml'):
 
         # 特徴抽出 (必要な場合)
         if use_feature_extractor:
-            if feature_extractor is None:
+            if feat_extractor_model is None:
                  raise RuntimeError("Feature extractor was not set up, but cache was not found.") # 安全装置
             
             print("--- Starting Feature Extraction (Train) ---")
-            X_train_features = extract_features(feature_extractor, X_train, device)
+            # feature_extractor.py から呼び出し
+            X_train_features = feature_extractor.extract_features(feat_extractor_model, X_train, device)
             print("--- Starting Feature Extraction (Test) ---")
-            X_test_features = extract_features(feature_extractor, X_test, device)
+            X_test_features = feature_extractor.extract_features(feat_extractor_model, X_test, device)
             print(f"Feature dimensions after extraction: Train={X_train_features.shape}, Test={X_test_features.shape}")
             
             # X_train, X_test を特徴量で上書き
@@ -698,122 +354,27 @@ def main(config_path='config.yaml'):
     ]}
     
     for epoch in range(config['epochs']):
-        model.train()
-
-        # --- 学習ステップの分岐 ---
-        if debias_method == 'IW_uniform':
-            # --- IW (Uniform Target) の学習ステップ (フルバッチ・グループ別勾配) ---
-            optimizer.zero_grad()
-            group_grads_list = {} # パラメータごとの勾配リストを格納
-
-            # 1. グループごとに勾配を計算
-            for g in group_keys:
-                y_val, a_val = g
-                mask = (y_train == y_val) & (a_train == a_val)
-                X_g, y_g = X_train[mask].to(device), y_train[mask].to(device)
-
-                if len(X_g) == 0:
-                    continue
-
-                # 勾配計算
-                scores_g, _ = model(X_g)
-                loss_g = get_loss_function(scores_g, y_g, loss_function_name)
-                loss_g.backward()
-
-                # 勾配をリストとして保存 (cloneしないと上書きされる)
-                group_grads_list[g] = [p.grad.clone() for p in model.parameters() if p.grad is not None]
-
-                # 次のグループのために勾配をリセット
-                optimizer.zero_grad()
-
-            # 2. 重み付き勾配を集約 (p.grad に設定)
-            #    (static_weights には 0.25 が入っている)
-            param_idx = 0
-            for param in model.parameters():
-                if param.requires_grad:
-                    # このパラメータの最終的な勾配
-                    debiased_grad = torch.zeros_like(param)
-                    for g, w_g in static_weights.items(): # static_weights を使用
-                        if g in group_grads_list:
-                            # 対応するグループの勾配リストから勾配を取得
-                            if param_idx < len(group_grads_list[g]):
-                                grad_g_param = group_grads_list[g][param_idx]
-                                debiased_grad += w_g * grad_g_param.to(device)
-
-                    param.grad = debiased_grad
-                    param_idx += 1
-
-            # 3. パラメータ更新
-            optimizer.step()
-
-        elif debias_method == 'GroupDRO':
-            # --- Group DRO 学習ステップ (フルバッチ・グループ別勾配) ---
-            optimizer.zero_grad()
-            group_grads_list = {} # パラメータごとの勾配リスト
-            group_losses_tensor = torch.zeros(len(group_keys), device=device)
-
-            # 1. グループごとに勾配と損失を計算
-            for i, g in enumerate(group_keys):
-                y_val, a_val = g
-                mask = (y_train == y_val) & (a_train == a_val)
-                X_g, y_g = X_train[mask].to(device), y_train[mask].to(device)
-
-                if len(X_g) == 0:
-                    continue
-
-                # 勾配計算
-                scores_g, _ = model(X_g)
-                loss_g = get_loss_function(scores_g, y_g, loss_function_name)
-                
-                group_losses_tensor[i] = loss_g.detach() # 損失を保存
-                
-                loss_g.backward()
-
-                # 勾配をリストとして保存
-                group_grads_list[g] = [p.grad.clone() for p in model.parameters() if p.grad is not None]
-                optimizer.zero_grad() # 次のグループのために勾配をリセット
-
-            # 2. グループ重み q を更新 (Exponentiated Gradient Ascent)
-            with torch.no_grad():
-                dro_eta_q = config['dro_eta_q']
-                # q_t+1 = q_t * exp(eta * L_t)
-                dro_q_weights = dro_q_weights * torch.exp(dro_eta_q * group_losses_tensor)
-                # 正規化
-                dro_q_weights = dro_q_weights / dro_q_weights.sum()
-            
-            # 100エポックごと，または最初のエポックで重みをログ出力
-            if (epoch + 1) % 100 == 0 or epoch == 0:
-                print(f"  Epoch {epoch+1} GroupDRO weights q: {np.array2string(dro_q_weights.cpu().numpy(), precision=4)}")
-
-
-            # 3. 重み付き勾配を集約 (p.grad に設定)
-            param_idx = 0
-            for param in model.parameters():
-                if param.requires_grad:
-                    debiased_grad = torch.zeros_like(param)
-                    for i, g in enumerate(group_keys):
-                        w_g = dro_q_weights[i] # 動的な重みを使用
-                        if g in group_grads_list:
-                            if param_idx < len(group_grads_list[g]):
-                                grad_g_param = group_grads_list[g][param_idx]
-                                debiased_grad += w_g * grad_g_param.to(device)
-                    
-                    param.grad = debiased_grad
-                    param_idx += 1
-
-            # 4. パラメータ更新
-            optimizer.step()
-
-        elif debias_method == 'None':
-            # --- 通常のERM学習ステップ (ミニバッチ) ---
-            for X_batch, y_batch in train_loader:
-                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-                optimizer.zero_grad()
-                scores, _ = model(X_batch)
-                loss = get_loss_function(scores, y_batch, loss_function_name)
-                loss.backward()
-                optimizer.step()
-        # --- 分岐終了 ---
+        
+        # --- 学習ステップ ---
+        updated_dro_weights = trainer.train_epoch(
+            config=config, 
+            model=model, 
+            optimizer=optimizer, 
+            debias_method=debias_method, 
+            X_train=X_train, 
+            y_train=y_train, 
+            a_train=a_train, 
+            train_loader=train_loader, 
+            group_keys=group_keys, 
+            static_weights=static_weights, 
+            dro_q_weights=dro_q_weights, 
+            device=device, 
+            loss_function_name=loss_function_name, 
+            epoch=epoch
+        )
+        
+        if updated_dro_weights is not None:
+            dro_q_weights = updated_dro_weights # GroupDROの場合，重みを更新
 
         # --- 評価 ---
         train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name, eval_batch_size)
