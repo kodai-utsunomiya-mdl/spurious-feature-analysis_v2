@@ -372,6 +372,7 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
     """
     グループごとのヤコビアンの標準ノルムと標準内積，および
     幾何学的中心ベクトル (Delta S, Delta L) のノルムとアラインメントを計算
+    グループ間ヤコビアンの距離の2乗を計算
     (入力: 事前に計算されたヤコビアンのリスト)
     """
     print(f"\nAnalyzing JACOBIAN (standard) NORMS on {dataset_type} data...")
@@ -391,14 +392,15 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
             group_norms_sq[(y, a)] = np.nan
             jacobian_results[key_name] = np.nan
 
-    # --- 2. 元のヤコビアン内積とコサイン類似度 ---
+    # --- 2. 元のヤコビアン内積，コサイン類似度，(★)距離 ---
     for (y1, a1), (y2, a2) in combinations(group_keys, 2):
         jac1_list = group_jacobians_list.get((y1, a1))
         jac2_list = group_jacobians_list.get((y2, a2))
         
         key_name_dot = f"dot_G({y1},{a1})_vs_G({y2},{a2})"
         key_name_cosine = f"cosine_G({y1},{a1})_vs_G({y2},{a2})"
-        
+        key_name_dist_sq = f"dist_sq_G({y1},{a1})_vs_G({y2},{a2})"
+
         if jac1_list is not None and jac2_list is not None:
             # 内積を計算
             inner_prod = _standard_inner_product(jac1_list, jac2_list)
@@ -415,13 +417,21 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
                     cosine_sim = inner_prod / (norm1 * norm2)
                     jacobian_results[key_name_cosine] = cosine_sim
                 else:
-                    jacobian_results[key_name_cosine] = np.nan # ゼロノルムの場合
+                    cosine_sim = np.nan # ゼロノルムの場合
+                
+                # --- (★) 追加: 距離の2乗 (Squared Distance) の計算 ---
+                # ||J1 - J2||^2 = ||J1||^2 + ||J2||^2 - 2*<J1, J2>
+                dist_sq = norm1_sq + norm2_sq - 2 * inner_prod
+                jacobian_results[key_name_dist_sq] = dist_sq
+
             else:
                 jacobian_results[key_name_cosine] = np.nan
+                jacobian_results[key_name_dist_sq] = np.nan # (★) ノルムがNaNなら距離もNaN
             
         else:
             jacobian_results[key_name_dot] = np.nan
             jacobian_results[key_name_cosine] = np.nan
+            jacobian_results[key_name_dist_sq] = np.nan # (★) リストがないならNaN
     
     # --- 3. 幾何学的中心ベクトルの分析 ---
     # Phi_g = Φ̄_g (グループgのヤコビアンの期待値)
