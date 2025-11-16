@@ -366,7 +366,7 @@ def calculate_group_jacobians(model, X_data, y_data, a_data, device, num_samples
     return group_jacobians_list
 
 # ==============================================================================
-# ヤコビアンノルムの分析 (リファクタリング)
+# ヤコビアンノルムの分析
 # ==============================================================================
 def analyze_jacobian_norms(group_jacobians_list, dataset_type):
     """
@@ -397,14 +397,14 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
         jac2_list = group_jacobians_list.get((y2, a2))
         
         key_name_dot = f"dot_G({y1},{a1})_vs_G({y2},{a2})"
-        key_name_cosine = f"cosine_G({y1},{a1})_vs_G({y2},{a2})" # <-- 修正点: キー名定義
+        key_name_cosine = f"cosine_G({y1},{a1})_vs_G({y2},{a2})"
         
         if jac1_list is not None and jac2_list is not None:
             # 内積を計算
             inner_prod = _standard_inner_product(jac1_list, jac2_list)
             jacobian_results[key_name_dot] = inner_prod
             
-            # --- 修正点: コサイン類似度の計算を追加 ---
+            # --- コサイン類似度の計算 ---
             norm1_sq = group_norms_sq.get((y1, a1), np.nan)
             norm2_sq = group_norms_sq.get((y2, a2), np.nan)
             
@@ -417,12 +417,11 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
                 else:
                     jacobian_results[key_name_cosine] = np.nan # ゼロノルムの場合
             else:
-                jacobian_results[key_name_cosine] = np.nan # ノルムが計算できなかった場合
-            # --- 修正終了 ---
+                jacobian_results[key_name_cosine] = np.nan
             
         else:
             jacobian_results[key_name_dot] = np.nan
-            jacobian_results[key_name_cosine] = np.nan # <-- 修正点: nan を設定
+            jacobian_results[key_name_cosine] = np.nan
     
     # --- 3. 幾何学的中心ベクトルの分析 ---
     # Phi_g = Φ̄_g (グループgのヤコビアンの期待値)
