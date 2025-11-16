@@ -1,6 +1,20 @@
-data/
-results/
+# Python build artifacts
 __pycache__/
-features_cache/
+
+# Virtual Environment
+.venv/
+
+# Project Data (Raw)
+data/
+
+# Project Artifacts (Outputs)
 results/
+features_cache/
+
+# Logging
 wandb/
+
+# OS / IDE specific (Good practice)
+.DS_Store
+.vscode/
+.idea/
