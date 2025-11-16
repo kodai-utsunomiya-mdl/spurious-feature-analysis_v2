@@ -3,8 +3,8 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_exp"
-dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
+experiment_name: "cm_exp"
+dataset_name: "ColoredMNIST"  # "ColoredMNIST" or "WaterBirds"
 loss_function: "logistic"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
@@ -18,7 +18,7 @@ num_train_samples: 50000
 num_test_samples: 9000
 
 # --- 事前特徴抽出器の設定 ---
-use_feature_extractor: true
+use_feature_extractor: false
 
 # --- 特徴抽出器のモデル選択 ---
 # 'ResNet18', 'ResNet50', 'ViT_B_16'

@@ -12,6 +12,7 @@ results/
 features_cache/
 
 # Logging
+logs/
 wandb/
 
 # OS / IDE specific (Good practice)
