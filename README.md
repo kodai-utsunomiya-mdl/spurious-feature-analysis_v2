@@ -26,7 +26,7 @@
 
 ### a. 依存関係のインストール
 ```bash
-uv pip install torch torchvision numpy pandas matplotlib scikit-learn pyyaml pot wandb
+uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
 ````
 
 ### b. データセットの準備
@@ -61,7 +61,7 @@ WaterBirdsデータセットは，`wilds` ライブラリではなく，Kaggle�
 3.  **結果の確認**:
       * コンソールに進捗が出力される．
       * 詳細なメトリクスは `wandb` のダッシュボードで確認できる．
-      * 最終的なプロットは、実行後に生成される `results/<experiment_name>_<timestamp>/` ディレクトリ内に保存される．
+      * 最終的なプロットは，実行後に生成される `results/<experiment_name>_<timestamp>/` ディレクトリ内に保存される．
 
 ## 5\. `config.yaml` の設定
 
