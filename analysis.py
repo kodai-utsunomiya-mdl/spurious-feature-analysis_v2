@@ -419,19 +419,19 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
                 else:
                     cosine_sim = np.nan # ゼロノルムの場合
                 
-                # --- (★) 追加: 距離の2乗 (Squared Distance) の計算 ---
+                # --- 距離の2乗 (Squared Distance) の計算 ---
                 # ||J1 - J2||^2 = ||J1||^2 + ||J2||^2 - 2*<J1, J2>
                 dist_sq = norm1_sq + norm2_sq - 2 * inner_prod
                 jacobian_results[key_name_dist_sq] = dist_sq
 
             else:
                 jacobian_results[key_name_cosine] = np.nan
-                jacobian_results[key_name_dist_sq] = np.nan # (★) ノルムがNaNなら距離もNaN
+                jacobian_results[key_name_dist_sq] = np.nan
             
         else:
             jacobian_results[key_name_dot] = np.nan
             jacobian_results[key_name_cosine] = np.nan
-            jacobian_results[key_name_dist_sq] = np.nan # (★) リストがないならNaN
+            jacobian_results[key_name_dist_sq] = np.nan
     
     # --- 3. 幾何学的中心ベクトルの分析 ---
     # Phi_g = Φ̄_g (グループgのヤコビアンの期待値)
@@ -661,6 +661,47 @@ def analyze_static_dynamic_decomposition(group_grads_list, group_jacobians_list,
     
     return results
 
+# ==============================================================================
+# モデル出力期待値の分析
+# ==============================================================================
+def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batch_size=None):
+    """
+    各グループにおけるモデル出力の期待値 E[f(x)] を計算する
+    """
+    print(f"  Calculating model output expectations...")
+    model.eval()
+    group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+    results = {}
+
+    # バッチサイズの設定 (Noneなら全データ)
+    N = len(X_data)
+    bs = batch_size if batch_size is not None else N
+    if bs <= 0: bs = N
+
+    # データローダーの作成（評価用）
+    dataset = torch.utils.data.TensorDataset(X_data)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=bs, shuffle=False)
+
+    all_scores = []
+    with torch.no_grad():
+        for (batch_X,) in loader:
+            batch_X = batch_X.to(device)
+            scores, _ = model(batch_X)
+            all_scores.append(scores.cpu())
+    
+    all_scores = torch.cat(all_scores) # 全データのスコア (N,)
+
+    # グループごとに平均を計算
+    for y_val, a_val in group_keys:
+        mask = (y_data == y_val) & (a_data == a_val)
+        if mask.sum() > 0:
+            mean_val = all_scores[mask].mean().item()
+            results[f'E[f(x)]_G({y_val},{a_val})'] = mean_val
+        else:
+            results[f'E[f(x)]_G({y_val},{a_val})'] = np.nan
+            
+    return results
+
 
 # ==============================================================================
 # 全ての分析を統括するラッパー関数
@@ -676,6 +717,7 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
     run_gap_factors = config.get('analyze_gap_dynamics_factors', False)
     run_jacobian_norm = config.get('analyze_jacobian_norm', False)
     run_static_dynamic = config.get('analyze_static_dynamic_decomposition', False)
+    run_output_exp = config.get('analyze_model_output_expectation', False)
 
     # --- グループ勾配の計算 (Basis, GapFactors, StaticDynamic が依存) ---
     group_grads_train, group_grads_test = None, None
@@ -756,3 +798,13 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
         if group_grads_test and group_jacobians_test:
             histories['static_dynamic_decomp_test'][epoch] = analyze_static_dynamic_decomposition(
                 group_grads_test, group_jacobians_test, config, y_test, a_test, "Test")
+
+    # --- モデル出力期待値の分析 ---
+    if run_output_exp:
+        eval_bs = config.get('eval_batch_size', None)
+        if analysis_target in ['train', 'both']:
+            histories['model_output_exp_train'][epoch] = analyze_model_output_expectation(
+                model, X_train, y_train, a_train, config['device'], eval_bs)
+        if analysis_target in ['test', 'both']:
+            histories['model_output_exp_test'][epoch] = analyze_model_output_expectation(
+                model, X_test, y_test, a_test, config['device'], eval_bs)

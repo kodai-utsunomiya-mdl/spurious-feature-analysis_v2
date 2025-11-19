@@ -77,3 +77,39 @@ Using cache found in /uge_mnt/home/utsu/.cache/torch/hub/facebookresearch_dinov2
   warnings.warn("xFormers is not available (Attention)")
 /uge_mnt/home/utsu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
   warnings.warn("xFormers is not available (Block)")
+wandb: updating run metadata
+wandb: uploading output.log
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading output.log
+wandb: uploading summary, console lines 629669-629672
+wandb: 
+wandb: Run history:
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term1 ▁▃▅▅▅▅▅▄▄▄▄▄▄▄▄▄▃▃▄▄▄▄▄▄▄▄▅▅▅▅▆▆▆▆▆▇▇▇▇█
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term2 █▆▂▂▁▁▁▂▂▂▃▃▃▄▄▄▄▄▄▄▄▄▄▄▄▃▃▃▃▃▃▃▃▃▃▃▃▃▃▂
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term3 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term1 █▅▅▆▆▆▆▆▆▆▆▅▅▅▅▅▅▅▅▄▄▄▄▄▄▄▃▃▃▃▃▃▃▃▃▂▂▂▁▁
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term2 ▁▆▇██▇▇▇▇▇▆▆▆▆▆▆▆▆▆▆▆▆▇▇▇▇▇▇▇▇▇▇▇▇▇▇████
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term3 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term1 ██▄▄▄▃▃▃▂▂▃▃▃▃▃▃▃▃▃▃▃▂▂▂▂▂▂▂▂▂▂▂▂▂▁▁▁▁▁▁
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term2 ▅▆▆▅▃▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▄▄▄▅▅▅▅▅▆▇▇▇█
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term3 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: analysis/gap_factors_train/g1_(-1, 1)_g2_(-1, -1)_term1 ▃▃▄▆▆██▇▇▆▆▅▅▅▄▄▃▃▃▃▃▂▂▂▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁
+wandb:                                                    +137 ...
+wandb: 
+wandb: Run summary:
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term1 0.73191
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term2 -1.48192
+wandb:  analysis/gap_factors_test/g1_(-1, 1)_g2_(-1, -1)_term3 0
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term1 -2.04042
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term2 2.94283
+wandb:  analysis/gap_factors_test/g1_(1, -1)_g2_(-1, -1)_term3 0
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term1 -1.82856
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term2 2.55362
+wandb:    analysis/gap_factors_test/g1_(1, -1)_g2_(1, 1)_term3 0
+wandb: analysis/gap_factors_train/g1_(-1, 1)_g2_(-1, -1)_term1 0.09303
+wandb:                                                    +137 ...
+wandb: 
+wandb: 🚀 View run wb_exp_20251116_142937 at: https://wandb.ai/mdl-tsukuba/sp_exp_test/runs/272lqghu
+wandb: ⭐️ View project at: https://wandb.ai/mdl-tsukuba/sp_exp_test
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20251116_142939-272lqghu/logs

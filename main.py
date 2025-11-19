@@ -350,7 +350,8 @@ def main(config_path='config.yaml'):
         'jacobian_norm_train', 'jacobian_norm_test',
         'grad_basis_train', 'grad_basis_test',
         'gap_factors_train', 'gap_factors_test',
-        'static_dynamic_decomp_train', 'static_dynamic_decomp_test'
+        'static_dynamic_decomp_train', 'static_dynamic_decomp_test',
+        'model_output_exp_train', 'model_output_exp_test'
     ]}
     
     for epoch in range(config['epochs']):
