@@ -284,12 +284,11 @@ def plot_static_dynamic_decomposition(history_train, history_test, config, save_
 # モデル出力期待値のプロット関数
 # ==============================================================================
 def plot_model_output_expectations(history_train, history_test, save_dir):
-    """各グループのモデル出力期待値 E[f(x)] の時間変化をプロット"""
+    """各グループのモデル出力期待値 E[f(x)] および標準偏差 Std[f(x)] の時間変化をプロット"""
     if not history_train and not history_test: return
     
     epochs = sorted(history_train.keys() if history_train else history_test.keys())
     first_epoch_data = history_train.get(epochs[0], {}) or history_test.get(epochs[0], {})
-    keys = sorted([k for k in first_epoch_data.keys() if k.startswith('E[f(x)]')])
     
     # グループごとの色定義
     # (-1,-1): Cyan, (-1,1): Blue, (1,-1): Orange, (1,1): Red
@@ -297,28 +296,56 @@ def plot_model_output_expectations(history_train, history_test, save_dir):
         '(-1,-1)': 'cyan', '(-1,1)': 'blue', 
         '(1,-1)': 'orange', '(1,1)': 'red'
     }
+
+    # --- 1. 期待値 (Mean) のプロット ---
+    keys_mean = sorted([k for k in first_epoch_data.keys() if k.startswith('E[f(x)]')])
     
-    fig, ax = plt.subplots(figsize=(12, 7))
-    fig.suptitle('Evolution of Model Output Expectations E[f(x)]', fontsize=16)
-    
-    for key in keys:
-        # キーからグループ特定 (例: "E[f(x)]_G(-1,-1)")
-        group_str = key.split('_G')[-1] # "(-1,-1)"
-        color = color_map.get(group_str, 'gray')
+    if keys_mean:
+        fig1, ax1 = plt.subplots(figsize=(12, 7))
+        fig1.suptitle('Evolution of Model Output Expectations E[f(x)]', fontsize=16)
         
-        if history_train:
-            vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
-            ax.plot(epochs, vals, marker='o', linestyle='-', color=color, label=f'{key} (Train)')
-        if history_test:
-            vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
-            ax.plot(epochs, vals, marker='x', linestyle='--', color=color, label=f'{key} (Test)')
+        for key in keys_mean:
+            group_str = key.split('_G')[-1] # "(-1,-1)"
+            color = color_map.get(group_str, 'gray')
             
-    ax.set(xlabel='Epoch', ylabel='E[f(x)]')
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    ax.grid(True, which="both", ls="--")
+            if history_train:
+                vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                ax1.plot(epochs, vals, marker='o', linestyle='-', color=color, label=f'{key} (Train)')
+            if history_test:
+                vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                ax1.plot(epochs, vals, marker='x', linestyle='--', color=color, label=f'{key} (Test)')
+                
+        ax1.set(xlabel='Epoch', ylabel='E[f(x)]')
+        ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax1.grid(True, which="both", ls="--")
+        
+        fig1.tight_layout(rect=[0, 0, 0.85, 0.96])
+        _save_and_close(fig1, save_dir, 'model_output_expectations.png')
+
+    # --- 2. 標準偏差 (Std) のプロット ---
+    keys_std = sorted([k for k in first_epoch_data.keys() if k.startswith('Std[f(x)]')])
     
-    fig.tight_layout(rect=[0, 0, 0.85, 0.96])
-    _save_and_close(fig, save_dir, 'model_output_expectations.png')
+    if keys_std:
+        fig2, ax2 = plt.subplots(figsize=(12, 7))
+        fig2.suptitle('Evolution of Model Output Standard Deviations Std[f(x)]', fontsize=16)
+        
+        for key in keys_std:
+            group_str = key.split('_G')[-1] # "(-1,-1)"
+            color = color_map.get(group_str, 'gray')
+            
+            if history_train:
+                vals = [history_train.get(e, {}).get(key, np.nan) for e in epochs]
+                ax2.plot(epochs, vals, marker='o', linestyle='-', color=color, label=f'{key} (Train)')
+            if history_test:
+                vals = [history_test.get(e, {}).get(key, np.nan) for e in epochs]
+                ax2.plot(epochs, vals, marker='x', linestyle='--', color=color, label=f'{key} (Test)')
+                
+        ax2.set(xlabel='Epoch', ylabel='Std[f(x)]')
+        ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax2.grid(True, which="both", ls="--")
+        
+        fig2.tight_layout(rect=[0, 0, 0.85, 0.96])
+        _save_and_close(fig2, save_dir, 'model_output_stds.png')
 
 
 # ==============================================================================

@@ -3,9 +3,9 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "cm_exp_output"
-dataset_name: "ColoredMNIST"  # "ColoredMNIST" or "WaterBirds"
-loss_function: "logistic"          # "logistic" or "mse"
+experiment_name: "wb_exp_iw_output_mse"
+dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
+loss_function: "mse"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: false
@@ -18,7 +18,7 @@ num_train_samples: 10000 # 10000, 50000
 num_test_samples: 9000
 
 # --- 事前特徴抽出器の設定 ---
-use_feature_extractor: false
+use_feature_extractor: true
 
 # --- 特徴抽出器のモデル選択 ---
 # 'ResNet18', 'ResNet50', 'ViT_B_16'
@@ -80,7 +80,7 @@ momentum: 0.0
 fix_final_layer: false  # trueにすると最終層の重みを固定
 
 # --- バイアス除去手法の選択 ---
-debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
+debias_method: "IW_uniform" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # --- Group DRO Settings ---
 dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)

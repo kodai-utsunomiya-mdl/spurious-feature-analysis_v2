@@ -666,9 +666,9 @@ def analyze_static_dynamic_decomposition(group_grads_list, group_jacobians_list,
 # ==============================================================================
 def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batch_size=None):
     """
-    各グループにおけるモデル出力の期待値 E[f(x)] を計算する
+    各グループにおけるモデル出力の期待値 E[f(x)] および標準偏差 Std[f(x)] を計算する
     """
-    print(f"  Calculating model output expectations...")
+    print(f"  Calculating model output expectations and standard deviations...")
     model.eval()
     group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
     results = {}
@@ -691,14 +691,19 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
     
     all_scores = torch.cat(all_scores) # 全データのスコア (N,)
 
-    # グループごとに平均を計算
+    # グループごとに平均と標準偏差を計算
     for y_val, a_val in group_keys:
         mask = (y_data == y_val) & (a_data == a_val)
         if mask.sum() > 0:
-            mean_val = all_scores[mask].mean().item()
+            scores_group = all_scores[mask]
+            mean_val = scores_group.mean().item()
+            std_val = scores_group.std().item()
+            
             results[f'E[f(x)]_G({y_val},{a_val})'] = mean_val
+            results[f'Std[f(x)]_G({y_val},{a_val})'] = std_val
         else:
             results[f'E[f(x)]_G({y_val},{a_val})'] = np.nan
+            results[f'Std[f(x)]_G({y_val},{a_val})'] = np.nan
             
     return results
 
