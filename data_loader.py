@@ -154,9 +154,39 @@ def get_colored_mnist(num_samples, correlation, label_marginal, attribute_margin
 
     return colorize_mnist(images, targets, num_samples, label_marginal, attribute_marginal, correlation)
 
+def get_colored_mnist_all(config):
+    """ 
+    CMNISTの全データセットを取得 (Train, Val, Test) 
+    CMNISTにはデフォルトでValがないため，Noneを返す．
+    """
+    image_size = 28
+    train_y_bar = config.get('train_label_marginal', 0.0)
+    train_a_bar = config.get('train_attribute_marginal', 0.0)
+    test_y_bar = config.get('test_label_marginal', 0.0)
+    test_a_bar = config.get('test_attribute_marginal', 0.0)
 
-def get_waterbirds_dataset(num_train, num_test, image_size):
-    """ WaterBirdsデータセットをKaggleから手動ダウンロードしたファイルを使ってロード """
+    X_train, y_train, a_train = get_colored_mnist(
+        num_samples=config['num_train_samples'],
+        correlation=config['train_correlation'],
+        label_marginal=train_y_bar,
+        attribute_marginal=train_a_bar,
+        train=True
+    )
+    
+    X_test, y_test, a_test = get_colored_mnist(
+        num_samples=config['num_test_samples'],
+        correlation=config['test_correlation'],
+        label_marginal=test_y_bar,
+        attribute_marginal=test_a_bar,
+        train=False
+    )
+    
+    # CMNISTはデフォルトでValidationセットを持たない
+    return X_train, y_train, a_train, None, None, None, X_test, y_test, a_test
+
+
+def get_waterbirds_dataset(num_train, num_val, num_test, image_size):
+    """ WaterBirdsデータセットをロード (Train, Val, Test) """
     
     data_dir = 'data/waterbirds_v1.0'
     archive_path = os.path.join(data_dir, 'archive.zip')
@@ -192,10 +222,12 @@ def get_waterbirds_dataset(num_train, num_test, image_size):
         split_df = metadata_df[metadata_df['split'] == split_id]
         
         num_to_sample = min(num_samples, len(split_df))
+        # 確実に同じデータを引けるようにシードを固定
         sampled_df = split_df.sample(n=num_to_sample, random_state=42) 
         
         images, y_labels, a_labels = [], [], []
         
+        # 画像読み込みループ
         for _, row in sampled_df.iterrows():
             img_path = os.path.join(unzip_dir, row['img_filename'])
             image = Image.open(img_path).convert('RGB')
@@ -206,14 +238,23 @@ def get_waterbirds_dataset(num_train, num_test, image_size):
             
         return torch.stack(images), torch.tensor(y_labels, dtype=torch.long), torch.tensor(a_labels, dtype=torch.long)
 
-    # split_id: 0 for train, 1 for val, 2 for test
+    print("Loading Waterbirds Train set...")
     X_train, y_train_01, a_train_01 = get_data_from_split(0, num_train)
+    
+    print("Loading Waterbirds Validation set...")
+    X_val, y_val_01, a_val_01 = get_data_from_split(1, num_val) # split=1 が Validation
+
+    print("Loading Waterbirds Test set...")
     X_test, y_test_01, a_test_01 = get_data_from_split(2, num_test)
 
     # ラベルを-1, +1形式に変換
     y_train_pm1 = y_train_01.float() * 2.0 - 1.0
     a_train_pm1 = a_train_01.float() * 2.0 - 1.0 
+    
+    y_val_pm1 = y_val_01.float() * 2.0 - 1.0
+    a_val_pm1 = a_val_01.float() * 2.0 - 1.0 
+    
     y_test_pm1 = y_test_01.float() * 2.0 - 1.0
     a_test_pm1 = a_test_01.float() * 2.0 - 1.0
 
-    return X_train, y_train_pm1, a_train_pm1, X_test, y_test_pm1, a_test_pm1
+    return X_train, y_train_pm1, a_train_pm1, X_val, y_val_pm1, a_val_pm1, X_test, y_test_pm1, a_test_pm1

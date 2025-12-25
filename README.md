@@ -17,6 +17,10 @@ The main objective is to theoretically and empirically understand how biases in 
     * Standard ERM (`debias_method: "None"`)
     * Importance Weighting (for uniform target distribution, corresponding to `v_inv` gradient flow) (`debias_method: "IW_uniform"`)
     * Group Distributionally Robust Optimization (GroupDRO) (`debias_method: "GroupDRO"`)
+* **Deep Feature Reweighting (DFR)**:
+    * Supports evaluating the quality of learned features by re-training the last layer (Logistic Regression) on a balanced validation set.
+    * Can target any intermediate layer for DFR application (`dfr_target_layer`).
+    * Supports flexible validation strategies (using the original validation set or splitting from the training set).
 * **In-Depth Analysis**:
     * Executes detailed analyses from `analysis.py` (e.g., gradient basis, Jacobian norms, static/dynamic decomposition) at any checkpoint during training.
 * **Logging**:
@@ -26,7 +30,7 @@ The main objective is to theoretically and empirically understand how biases in 
 
 ### a. Install Dependencies
 
-    uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
+    uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb scikit-learn
 
 ### b. Dataset Preparation
 
@@ -100,6 +104,16 @@ The `config.yaml` file contains the primary parameters for controlling experimen
 * `epochs`: Total number of epochs.
 * `debias_method`: Select from `None` (ERM), `IW_uniform` (v\_inv gradient flow), `GroupDRO`.
 * `dro_eta_q`: Step size (learning rate) for updating GroupDRO group weights `q`.
+
+### Deep Feature Reweighting (DFR)
+
+* `use_dfr`: If `true`, DFR is executed after the main training loop.
+* `dfr_target_layer`: Layer to extract features from for DFR (e.g., `"last_hidden"`, `"layer_1"`).
+* `dfr_val_split_strategy`:
+    * `"original"`: Uses the dataset's official validation set (recommended for WaterBirds).
+    * `"split_from_train"`: Splits the training set to create a validation set (recommended for ColoredMNIST).
+* `dfr_val_ratio`: Ratio of training data to use as validation when `split_from_train` is selected.
+* `dfr_reg`, `dfr_c_options`: Regularization settings for the logistic regression in DFR.
 
 ### Analysis (`analysis.py`)
 

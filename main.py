@@ -19,6 +19,7 @@ import analysis
 import plotting
 import feature_extractor
 import trainer
+import dfr
 
 def main(config_path='config.yaml'):
     # 1. 設定ファイルの読み込み
@@ -64,7 +65,6 @@ def main(config_path='config.yaml'):
     print(f"Using feature cache directory: {CACHE_DIR}")
 
     # --- 特徴抽出器のセットアップ (configに応じて) ---
-    # feature_extractor.py に分離
     feat_extractor_model = None
     input_dim_for_mlp = None 
     
@@ -78,6 +78,9 @@ def main(config_path='config.yaml'):
     cache_path_train_X = None
     cache_path_train_y = None
     cache_path_train_a = None
+    cache_path_val_X = None
+    cache_path_val_y = None
+    cache_path_val_a = None
     cache_path_test_X = None
     cache_path_test_y = None
     cache_path_test_a = None
@@ -89,17 +92,23 @@ def main(config_path='config.yaml'):
         
         # キャッシュパスの生成 (feature_extractor.py から呼び出し)
         base_name_train = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'train')
+        base_name_val = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'val')
         base_name_test = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'test')
         
         cache_path_train_X = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_X.pt'))
         cache_path_train_y = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_y.pt'))
         cache_path_train_a = os.path.join(CACHE_DIR, base_name_train.replace('.pt', '_a.pt'))
+
+        cache_path_val_X = os.path.join(CACHE_DIR, base_name_val.replace('.pt', '_X.pt'))
+        cache_path_val_y = os.path.join(CACHE_DIR, base_name_val.replace('.pt', '_y.pt'))
+        cache_path_val_a = os.path.join(CACHE_DIR, base_name_val.replace('.pt', '_a.pt'))
         
         cache_path_test_X = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_X.pt'))
         cache_path_test_y = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_y.pt'))
         cache_path_test_a = os.path.join(CACHE_DIR, base_name_test.replace('.pt', '_a.pt'))
 
         print(f"Train feature cache path (X): {cache_path_train_X}")
+        print(f"Val feature cache path (X): {cache_path_val_X}")
         print(f"Test feature cache path (X): {cache_path_test_X}")
     
     elif not use_feature_extractor:
@@ -110,17 +119,17 @@ def main(config_path='config.yaml'):
 
     # 特徴抽出の実行 or キャッシュのロード
     
-    # キャッシュの存在確認
+    # キャッシュの存在確認 (Train, Testは必須)
     use_cache = (
         use_feature_extractor and
         cache_path_train_X is not None and
         os.path.exists(cache_path_train_X) and
-        os.path.exists(cache_path_train_y) and
-        os.path.exists(cache_path_train_a) and
-        os.path.exists(cache_path_test_X) and
-        os.path.exists(cache_path_test_y) and
-        os.path.exists(cache_path_test_a)
+        os.path.exists(cache_path_test_X) 
     )
+
+    X_train, y_train, a_train = None, None, None
+    X_val, y_val, a_val = None, None, None
+    X_test, y_test, a_test = None, None, None
 
     if use_cache:
         # --- キャッシュが存在する場合 ---
@@ -129,7 +138,17 @@ def main(config_path='config.yaml'):
             X_train = torch.load(cache_path_train_X, map_location=torch.device('cpu')) # CPUにロード
             y_train = torch.load(cache_path_train_y, map_location=torch.device('cpu'))
             a_train = torch.load(cache_path_train_a, map_location=torch.device('cpu'))
-            X_test = torch.load(cache_path_test_X, map_location=torch.device('cpu')) # CPUにロード
+            
+            # Valキャッシュのロード試行
+            if os.path.exists(cache_path_val_X):
+                print("Loading Validation cache...")
+                X_val = torch.load(cache_path_val_X, map_location=torch.device('cpu'))
+                y_val = torch.load(cache_path_val_y, map_location=torch.device('cpu'))
+                a_val = torch.load(cache_path_val_a, map_location=torch.device('cpu'))
+            else:
+                print("Validation cache not found. X_val will be None.")
+
+            X_test = torch.load(cache_path_test_X, map_location=torch.device('cpu'))
             y_test = torch.load(cache_path_test_y, map_location=torch.device('cpu'))
             a_test = torch.load(cache_path_test_a, map_location=torch.device('cpu'))
             
@@ -143,9 +162,9 @@ def main(config_path='config.yaml'):
 
         except Exception as e:
             print(f"Warning: Failed to load features from cache: {e}. Re-extracting...")
-            use_cache = False # ロード失敗
+            use_cache = False
             if feat_extractor_model is None:
-                 raise RuntimeError("Feature extractor was not set up, but cache load failed.") # 安全装置
+                 raise RuntimeError("Feature extractor was not set up, but cache load failed.")
     
     if not use_cache:
         # --- キャッシュが存在しない (or ロード失敗) の場合 ---
@@ -153,31 +172,18 @@ def main(config_path='config.yaml'):
         # 生データをロード
         if config['dataset_name'] == 'ColoredMNIST':
             image_size = 28
-
-            train_y_bar = config.get('train_label_marginal', 0.0)
-            train_a_bar = config.get('train_attribute_marginal', 0.0)
-            test_y_bar = config.get('test_label_marginal', 0.0)
-            test_a_bar = config.get('test_attribute_marginal', 0.0)
-
-            X_train, y_train, a_train = data_loader.get_colored_mnist(
-                num_samples=config['num_train_samples'],
-                correlation=config['train_correlation'],
-                label_marginal=train_y_bar,
-                attribute_marginal=train_a_bar,
-                train=True
-            )
-            X_test, y_test, a_test = data_loader.get_colored_mnist(
-                num_samples=config['num_test_samples'],
-                correlation=config['test_correlation'],
-                label_marginal=test_y_bar,
-                attribute_marginal=test_a_bar,
-                train=False
-            )
+            # get_colored_mnist_all を使用して3分割対応 (ValはNoneで返ってくる)
+            X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test = data_loader.get_colored_mnist_all(config)
 
         elif config['dataset_name'] == 'WaterBirds':
             image_size = 224
-            X_train, y_train, a_train, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
-                num_train=config['num_train_samples'], num_test=config['num_test_samples'], image_size=image_size
+            num_val = config.get('num_val_samples', 5000)
+            
+            X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
+                num_train=config['num_train_samples'],
+                num_val=num_val,
+                num_test=config['num_test_samples'],
+                image_size=image_size
             )
             
         else:
@@ -186,18 +192,23 @@ def main(config_path='config.yaml'):
         # 特徴抽出 (必要な場合)
         if use_feature_extractor:
             if feat_extractor_model is None:
-                 raise RuntimeError("Feature extractor was not set up, but cache was not found.") # 安全装置
+                 raise RuntimeError("Feature extractor was not set up, but cache was not found.")
             
             print("--- Starting Feature Extraction (Train) ---")
             # feature_extractor.py から呼び出し
             X_train_features = feature_extractor.extract_features(feat_extractor_model, X_train, device)
+            X_train = X_train_features
+
+            if X_val is not None:
+                print("--- Starting Feature Extraction (Val) ---")
+                X_val_features = feature_extractor.extract_features(feat_extractor_model, X_val, device)
+                X_val = X_val_features
+            
             print("--- Starting Feature Extraction (Test) ---")
             X_test_features = feature_extractor.extract_features(feat_extractor_model, X_test, device)
-            print(f"Feature dimensions after extraction: Train={X_train_features.shape}, Test={X_test_features.shape}")
-            
-            # X_train, X_test を特徴量で上書き
-            X_train = X_train_features
             X_test = X_test_features
+            
+            print(f"Feature dimensions after extraction: Train={X_train.shape}, Test={X_test.shape}")
             
             # キャッシュに保存
             try:
@@ -205,6 +216,12 @@ def main(config_path='config.yaml'):
                 torch.save(X_train, cache_path_train_X)
                 torch.save(y_train, cache_path_train_y)
                 torch.save(a_train, cache_path_train_a)
+                
+                if X_val is not None:
+                    torch.save(X_val, cache_path_val_X)
+                    torch.save(y_val, cache_path_val_y)
+                    torch.save(a_val, cache_path_val_a)
+                
                 torch.save(X_test, cache_path_test_X)
                 torch.save(y_test, cache_path_test_y)
                 torch.save(a_test, cache_path_test_a)
@@ -223,6 +240,8 @@ def main(config_path='config.yaml'):
             print("Skipping dataset sample visualization (data is pre-extracted features).")
 
     X_train = utils.l2_normalize_images(X_train)
+    if X_val is not None:
+        X_val = utils.l2_normalize_images(X_val)
     X_test = utils.l2_normalize_images(X_test)
 
     # --- グループのリストを定義 ---
@@ -269,6 +288,8 @@ def main(config_path='config.yaml'):
         raise ValueError(f"Unknown debias_method: {debias_method}. Must be 'None', 'IW_uniform', or 'GroupDRO'.")
 
     utils.display_group_distribution(y_train, a_train, "Train Set", config['dataset_name'], result_dir)
+    if y_val is not None:
+        utils.display_group_distribution(y_val, a_val, "Validation Set", config['dataset_name'], result_dir)
     utils.display_group_distribution(y_test, a_test, "Test Set", config['dataset_name'], result_dir)
 
     # 4. モデルとオプティマイザの準備
@@ -356,24 +377,14 @@ def main(config_path='config.yaml'):
         
         # --- 学習ステップ ---
         updated_dro_weights = trainer.train_epoch(
-            config=config, 
-            model=model, 
-            optimizer=optimizer, 
-            debias_method=debias_method, 
-            X_train=X_train, 
-            y_train=y_train, 
-            a_train=a_train, 
-            train_loader=train_loader, 
-            group_keys=group_keys, 
-            static_weights=static_weights, 
-            dro_q_weights=dro_q_weights, 
-            device=device, 
-            loss_function_name=loss_function_name, 
-            epoch=epoch
+            config, model, optimizer, debias_method, 
+            X_train, y_train, a_train, train_loader, 
+            group_keys, static_weights, dro_q_weights, 
+            device, loss_function_name, epoch
         )
         
         if updated_dro_weights is not None:
-            dro_q_weights = updated_dro_weights # GroupDROの場合，重みを更新
+            dro_q_weights = updated_dro_weights 
 
         # --- 評価 ---
         train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name, eval_batch_size)
@@ -409,13 +420,11 @@ def main(config_path='config.yaml'):
                 log_metrics[f'test_group_{i}_loss'] = test_metrics['group_losses'][i]
                 log_metrics[f'test_group_{i}_acc'] = test_metrics['group_accs'][i]
             
-            # y=-1 の損失差 (少数派 - 多数派)
             if not np.isnan(train_metrics['group_losses'][1]) and not np.isnan(train_metrics['group_losses'][0]):
                 log_metrics['train_loss_gap_y_neg1'] = train_metrics['group_losses'][1] - train_metrics['group_losses'][0]
             if not np.isnan(test_metrics['group_losses'][1]) and not np.isnan(test_metrics['group_losses'][0]):
                 log_metrics['test_loss_gap_y_neg1'] = test_metrics['group_losses'][1] - test_metrics['group_losses'][0]
             
-            # y=+1 の損失差 (少数派 - 多数派)
             if not np.isnan(train_metrics['group_losses'][2]) and not np.isnan(train_metrics['group_losses'][3]):
                 log_metrics['train_loss_gap_y_pos1'] = train_metrics['group_losses'][2] - train_metrics['group_losses'][3]
             if not np.isnan(test_metrics['group_losses'][2]) and not np.isnan(test_metrics['group_losses'][3]):
@@ -430,21 +439,21 @@ def main(config_path='config.yaml'):
             if not config.get(analysis_name, False):
                 return False
             epoch_list = config.get(epoch_list_name)
-            if epoch_list is None: # キーが存在しないか，値がNone (毎エポック実行)
+            if epoch_list is None: 
                 return True
-            return current_epoch in epoch_list # リストが指定されている場合
+            return current_epoch in epoch_list 
 
         run_grad_basis = should_run('analyze_gradient_basis', 'gradient_basis_analysis_epochs')
         run_gap_factors = should_run('analyze_gap_dynamics_factors', 'gap_dynamics_factors_analysis_epochs')
         run_jacobian_norm = should_run('analyze_jacobian_norm', 'jacobian_norm_analysis_epochs')
         run_static_dynamic = should_run('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
+        run_output_exp = should_run('analyze_model_output_expectation', 'model_output_expectation_analysis_epochs')
 
-        run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic
+        run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic or run_output_exp
 
         if run_any_analysis:
             print(f"\n{'='*25} CHECKPOINT ANALYSIS @ EPOCH {current_epoch} {'='*25}")
 
-            # train_outputs, test_outputs は analysis.py で使われなくなった
             train_outputs, test_outputs = (None, None)
 
             temp_config = config.copy()
@@ -452,6 +461,7 @@ def main(config_path='config.yaml'):
             temp_config['analyze_gap_dynamics_factors'] = run_gap_factors
             temp_config['analyze_jacobian_norm'] = run_jacobian_norm
             temp_config['analyze_static_dynamic_decomposition'] = run_static_dynamic
+            temp_config['analyze_model_output_expectation'] = run_output_exp
 
             analysis.run_all_analyses(
                 temp_config, current_epoch, all_target_layers, model, train_outputs, test_outputs,
@@ -466,8 +476,6 @@ def main(config_path='config.yaml'):
                         epoch_data = history_dict[current_epoch]
                         if isinstance(epoch_data, dict):
                             for sub_key, value in epoch_data.items():
-                                # jacobian, basis, gap_factors, static_dynamic_decomp はすべて
-                                # スカラ値の辞書を返すため，単純にログ記録
                                 analysis_log_metrics[f'analysis/{history_key}/{sub_key}'] = value
                 if analysis_log_metrics:
                     analysis_log_metrics['epoch'] = current_epoch
@@ -482,6 +490,83 @@ def main(config_path='config.yaml'):
     history_df.to_csv(os.path.join(result_dir, 'training_history.csv'))
 
     plotting.plot_all_results(history_df, analysis_histories, all_target_layers, result_dir, config)
+
+    # ---------------------------------------------------------
+    # 7. DFR (Deep Feature Reweighting) の実行 (オプション)
+    # ---------------------------------------------------------
+    if config.get('use_dfr', False):
+        try:
+            # 外部から読み込んだValidationセット (X_val, y_val, a_val) を渡す
+            # 内部で config['dfr_val_split_strategy'] に基づき処理される
+            dfr_train_metrics, dfr_test_metrics = dfr.run_dfr_procedure(
+                config, model, 
+                X_train, y_train, a_train, 
+                X_test, y_test, a_test, 
+                device,
+                loss_function_name=loss_function_name,
+                X_val=X_val, y_val=y_val, a_val=a_val
+            )
+            
+            # WandBログの記録 (ERMの指標と完全に対応するものをプレフィックス付きで記録)
+            if config.get('wandb', {}).get('enable', False):
+                dfr_log_metrics = {}
+                
+                # Train Metrics Mapping
+                dfr_log_metrics['dfr_train_avg_loss'] = dfr_train_metrics['avg_loss']
+                dfr_log_metrics['dfr_train_worst_loss'] = dfr_train_metrics['worst_loss']
+                dfr_log_metrics['dfr_train_avg_acc'] = dfr_train_metrics['avg_acc']
+                dfr_log_metrics['dfr_train_worst_acc'] = dfr_train_metrics['worst_acc']
+                
+                # Test Metrics Mapping
+                dfr_log_metrics['dfr_test_avg_loss'] = dfr_test_metrics['avg_loss']
+                dfr_log_metrics['dfr_test_worst_loss'] = dfr_test_metrics['worst_loss']
+                dfr_log_metrics['dfr_test_avg_acc'] = dfr_test_metrics['avg_acc']
+                dfr_log_metrics['dfr_test_worst_acc'] = dfr_test_metrics['worst_acc']
+
+                # Group-wise Metrics
+                for i in range(4):
+                    dfr_log_metrics[f'dfr_train_group_{i}_loss'] = dfr_train_metrics['group_losses'][i]
+                    dfr_log_metrics[f'dfr_train_group_{i}_acc'] = dfr_train_metrics['group_accs'][i]
+                    dfr_log_metrics[f'dfr_test_group_{i}_loss'] = dfr_test_metrics['group_losses'][i]
+                    dfr_log_metrics[f'dfr_test_group_{i}_acc'] = dfr_test_metrics['group_accs'][i]
+                
+                # Gap Metrics (train)
+                if not np.isnan(dfr_train_metrics['group_losses'][1]) and not np.isnan(dfr_train_metrics['group_losses'][0]):
+                    dfr_log_metrics['dfr_train_loss_gap_y_neg1'] = dfr_train_metrics['group_losses'][1] - dfr_train_metrics['group_losses'][0]
+                if not np.isnan(dfr_train_metrics['group_losses'][2]) and not np.isnan(dfr_train_metrics['group_losses'][3]):
+                    dfr_log_metrics['dfr_train_loss_gap_y_pos1'] = dfr_train_metrics['group_losses'][2] - dfr_train_metrics['group_losses'][3]
+                
+                # Gap Metrics (test)
+                if not np.isnan(dfr_test_metrics['group_losses'][1]) and not np.isnan(dfr_test_metrics['group_losses'][0]):
+                    dfr_log_metrics['dfr_test_loss_gap_y_neg1'] = dfr_test_metrics['group_losses'][1] - dfr_test_metrics['group_losses'][0]
+                if not np.isnan(dfr_test_metrics['group_losses'][2]) and not np.isnan(dfr_test_metrics['group_losses'][3]):
+                    dfr_log_metrics['dfr_test_loss_gap_y_pos1'] = dfr_test_metrics['group_losses'][2] - dfr_test_metrics['group_losses'][3]
+
+                # モデル出力の統計量 (平均・標準偏差) のログ
+                for k, v in dfr_train_metrics.items():
+                    if 'E[f(x)]' in k or 'Std[f(x)]' in k:
+                        dfr_log_metrics[f'dfr_train_{k}'] = v
+                for k, v in dfr_test_metrics.items():
+                    if 'E[f(x)]' in k or 'Std[f(x)]' in k:
+                        dfr_log_metrics[f'dfr_test_{k}'] = v
+
+                wandb.log(dfr_log_metrics)
+                
+            # テキスト結果保存
+            with open(os.path.join(result_dir, 'dfr_results.txt'), 'w') as f:
+                f.write("DFR Evaluation Results (Same metrics as ERM)\n")
+                f.write(f"Train Avg Loss: {dfr_train_metrics['avg_loss']:.4f}\n")
+                f.write(f"Train Worst Acc: {dfr_train_metrics['worst_acc']:.4f}\n")
+                f.write(f"Test Avg Loss: {dfr_test_metrics['avg_loss']:.4f}\n")
+                f.write(f"Test Worst Acc: {dfr_test_metrics['worst_acc']:.4f}\n")
+                f.write("\nTest Group Details:\n")
+                for i in range(4):
+                    f.write(f"  Group {i}: Loss={dfr_test_metrics['group_losses'][i]:.4f}, Acc={dfr_test_metrics['group_accs'][i]:.4f}\n")
+
+        except Exception as e:
+            print(f"\n[Error] DFR execution failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     if config.get('wandb', {}).get('enable', False):
         wandb.finish()
