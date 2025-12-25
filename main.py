@@ -2,12 +2,10 @@
 
 import os
 import yaml
-import time
 import shutil
 import datetime
 import torch
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
@@ -432,7 +430,7 @@ def main(config_path='config.yaml'):
             if not config.get(analysis_name, False):
                 return False
             epoch_list = config.get(epoch_list_name)
-            if epoch_list is None: # キーが存在しないか，値がNone（毎エポック実行）
+            if epoch_list is None: # キーが存在しないか，値がNone (毎エポック実行)
                 return True
             return current_epoch in epoch_list # リストが指定されている場合
 

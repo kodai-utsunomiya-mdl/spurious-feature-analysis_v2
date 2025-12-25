@@ -1,12 +1,9 @@
 # sp/feature_extractor.py
 
-import os
 import torch
-import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import torchvision.models as models
 from torchvision import transforms
-import numpy as np
 
 # torchvision.models.feature_extraction をインポート
 try:
@@ -211,7 +208,7 @@ def get_cache_filename(dataset_name, model_name, config, split):
     # ファイル名に使えない文字を置換
     filename = '_'.join(map(str, name_parts)).replace(' ', '_').replace('/', '_').replace('-', 'm')
     if len(filename) > 100:
-         # シンプルなハッシュ（Python標準のhash）を使って短縮
+         # シンプルなハッシュ (Python標準のhash) を使って短縮
          hash_val = hash(filename)
          filename = f"{filename[:80]}_{hash_val}"
 

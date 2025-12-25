@@ -11,7 +11,7 @@
 #$ -o logs/job.o$JOB_ID           # 標準出力(print文など)の保存先
 #$ -e logs/job.e$JOB_ID           # 標準エラーの保存先
 
-# --- 実行するコマンド (ここからがジョブ本体) ---
+# --- 実行するコマンド (ジョブ本体) ---
 
 # 0. 環境設定の読み込み (uvコマンドなどを見つけるため)
 source ~/.bashrc
@@ -22,13 +22,11 @@ export https_proxy=http://10.1.10.1:8080
 export ftp_proxy=http://10.1.10.1:8080
 
 # 2. 仮想環境の準備
-# (毎回--clearすると時間がかかるため，初回以降はコメントアウト推奨)
 echo "Setting up venv..."
 uv venv --clear
 source .venv/bin/activate
 
 # 3. 依存関係のインストール
-# (同上，初回以降はコメントアウト推奨)
 echo "Installing dependencies..."
 uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
 

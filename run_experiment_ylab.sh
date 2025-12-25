@@ -19,7 +19,7 @@ export http_proxy=http://10.1.10.1:8080
 export https_proxy=http://10.1.10.1:8080
 export ftp_proxy=http://10.1.10.1:8080
 
-# 3. Setup uv PATH (Crucial Step!)
+# 3. Setup uv PATH
 # uvがインストールされた場所をPATHに追加
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -37,7 +37,6 @@ fi
 source .venv/bin/activate
 
 # 5. Install Dependencies
-# (Already installed during interactive session, but kept for safety)
 echo "Installing dependencies..."
 uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
 

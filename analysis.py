@@ -1,104 +1,38 @@
 # sp/analysis.py
 
 import numpy as np
-from itertools import combinations, combinations_with_replacement
+from itertools import combinations
 import torch
-import torch.nn.functional as F
-from torch.func import vmap, grad, functional_call
 
 # ==============================================================================
-# ヤコビアン計算のヘルパー関数 (vmap を使用してバッチ化)
+# ヤコビアン計算のヘルパー関数
 # ==============================================================================
 def get_model_jacobian(model, X_subset, device):
     """
-    モデルのヤコビアンの期待値を計算 (パラメータごとのリストとして)
-    vmapを使用してバッチ処理で高速化
+    モデルのヤコビアンの期待値 (勾配の平均) を計算
     """
     model.eval()
+    model.zero_grad() # 念のためリセット
     X_subset = X_subset.to(device)
-
-    # 1. モデルのパラメータとバッファを「辞書」として取得
-    params_dict = dict(model.named_parameters())
-    buffers_dict = dict(model.named_buffers()) # このモデルでは通常は空
-
-    # 2. gradが微分対象とする「パラメータの値のタプル」を取得
-    #    (gradは辞書ではなく，タプルやテンソルを引数に取るため)
-    params_values_tuple = tuple(params_dict.values())
     
-    # 3. パラメータの「キーのタプル」を保持 (後で辞書を再構築するため)
-    params_keys = tuple(params_dict.keys())
-
-    def compute_output_scalar(params_values_tuple_inner, x_sample):
-        """
-        1サンプル(x_sample)と「パラメータ値のタプル」を受け取り，
-        モデルのスカラ出力を計算する
-        
-        Note: buffers_dict は外側のスコープからキャプチャされ，定数として扱われる
-        """
-        
-        # 4. functional_call のために，(キー, 値)タプルからパラメータ辞書を再構築
-        param_dict_reconstructed = {
-            key: value for key, value in zip(params_keys, params_values_tuple_inner)
-        }
-        
-        # モデルはバッチ入力を想定しているため，(C, H, W) -> (1, C, H, W) のように
-        # バッチ次元 (1) を追加して渡す
-        x_batch = x_sample.unsqueeze(0)
-        
-        # 5. functional_call を (param_dict, buffer_dict) の形式で呼び出す
-        return torch.func.functional_call(
-            model,
-            (param_dict_reconstructed, buffers_dict), # (param_dict, buffer_dict)
-            x_batch
-        )[0].squeeze(0) # [0]で output_scalar を取得
-
-    # 6. 1サンプルのヤコビアンを計算する関数を定義
-    #    compute_output_scalar の第0引数 (params_values_tuple_inner) で微分
-    compute_jacobian_per_sample = torch.func.grad(compute_output_scalar, argnums=0)
-
-    # 7. vmap を使ってバッチ全体でヤコビアン計算を並列化
-    #    compute_jacobian_per_sample を
-    #    params_values_tuple (in_dims=None, バッチ処理せず共有)
-    #    X_subset (in_dims=0, 0次元目でバッチ処理)
-    #    に適用する
+    # 1. バッチ全体の出力を計算
+    scores, _ = model(X_subset) # (N,)
     
-    # batched_jacobians_tuple は (params_values_tuple と同じ構造の) タプル
-    # 各要素の形状は (N, *param_shape), Nはバッチサイズ
-    try:
-        batched_jacobians_tuple = torch.func.vmap(
-            compute_jacobian_per_sample, in_dims=(None, 0)
-        )(params_values_tuple, X_subset)
-        
-    except Exception as e:
-        print(f"Error during vmap execution: {e}")
-        print("This might be due to CUDA OOM or an issue with the functionalized model.")
-        return [] # エラー時は空リストを返す
-
-    # 8. バッチ次元 (dim=0) で平均をとり，期待ヤコビアンを計算
-    # (None が返る可能性があるため，None でないかチェックしながら平均化)
-    avg_jacobian_tuple = tuple(
-        jac_batch.mean(dim=0) if jac_batch is not None else None
-        for jac_batch in batched_jacobians_tuple
-    )
-
-    # 9. Numpy配列のリストに変換
-    avg_jacobian_list = [
-        avg_grad.cpu().detach().numpy() if avg_grad is not None else None
-        for avg_grad in avg_jacobian_tuple
-    ]
-
-    # 10. None (勾配が計算されなかったパラメータ,例: requires_grad=False) を除外
-    avg_jacobian_list_filtered = [g for g in avg_jacobian_list if g is not None]
-
-    # 11. 警告チェック
-    num_grad_params = sum(1 for p in model.parameters() if p.requires_grad)
+    # 2. 出力の平均をとる (効率化)
+    # 線形性により E[∇f(x)] = ∇E[f(x)] なので，先に平均をとってから微分しても結果は同じ
+    mean_output = scores.mean()
     
-    if len(avg_jacobian_list_filtered) != num_grad_params:
-         # grad() は requires_grad=False のパラメータに対して None を返すため，
-         # filtered と num_grad_params は一致するはずだが，念のため警告を残す
-         print(f"Warning: Final averaged Jacobian list length ({len(avg_jacobian_list_filtered)}) differs from expected ({num_grad_params}).")
+    # 3. 平均出力に対する勾配を計算 (標準的なBackprop)
+    # requires_grad=True のパラメータのみ対象
+    params = [p for p in model.parameters() if p.requires_grad]
+    
+    # create_graph=False (推論/分析用なので計算グラフは保持しなくてよい)
+    grads = torch.autograd.grad(mean_output, params, create_graph=False)
+    
+    # 4. Numpy配列のリストに変換
+    avg_jacobian_list = [g.cpu().detach().numpy() for g in grads]
 
-    return avg_jacobian_list_filtered
+    return avg_jacobian_list
 
 
 # ==============================================================================
@@ -106,7 +40,7 @@ def get_model_jacobian(model, X_subset, device):
 # ==============================================================================
 def calculate_group_gradients(model, X_data, y_data, a_data, device, loss_function, dataset_type, num_samples):
     """
-    グループごとの勾配を計算（パラメータごとのリストとして）
+    グループごとの勾配を計算 (パラメータごとのリストとして) 
     """
     print(f"\nCalculating GROUP GRADIENTS on {dataset_type} data...")
     if num_samples is not None:
@@ -245,16 +179,15 @@ def analyze_gradient_basis(group_grads_list, dataset_type):
             cosine_sim = np.nan
         results[f'cosine_{key1}_{key2}'] = cosine_sim
 
-    # プロットや後続の分析のために，計算したベクトル自体も返す
     results['vectors'] = basis_vectors_list
     return results
 
 # ==============================================================================
-# 性能差ダイナミクスの要因の分析
+# 性能差のダイナミクスの要因の分析
 # ==============================================================================
 def analyze_gap_dynamics_factors(group_grads_list, basis_vectors_list, config, y_data, a_data, dataset_type):
     """
-    性能差ダイナミクスの3つの要因（分布非依存，周辺分布バイアス，相関バイアス）の
+    性能差のダイナミクスの3つの要因 (分布非依存，周辺分布のバイアス，相関のバイアス) の
     大きさを，設定ファイルで指定されたグループペア (g1, g2) ごとに計算する
     """
     print(f"\nAnalyzing GAP DYNAMICS FACTORS on {dataset_type} data...")
@@ -340,7 +273,7 @@ def analyze_gap_dynamics_factors(group_grads_list, basis_vectors_list, config, y
 # ==============================================================================
 def calculate_group_jacobians(model, X_data, y_data, a_data, device, num_samples, dataset_type):
     """
-    グループごとのヤコビアンの期待値（平均埋め込み m_g(t)）を計算
+    グループごとのヤコビアンの期待値 (平均埋め込み m_g(t)) を計算
     """
     print(f"\nCalculating GROUP JACOBIANS on {dataset_type} data (using {num_samples} samples per group)...")
     group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
@@ -392,7 +325,7 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
             group_norms_sq[(y, a)] = np.nan
             jacobian_results[key_name] = np.nan
 
-    # --- 2. 元のヤコビアン内積，コサイン類似度，(★)距離 ---
+    # --- 2. 元のヤコビアン内積，コサイン類似度，距離 ---
     for (y1, a1), (y2, a2) in combinations(group_keys, 2):
         jac1_list = group_jacobians_list.get((y1, a1))
         jac2_list = group_jacobians_list.get((y2, a2))
@@ -441,7 +374,7 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
     # L_+1 (L_p1) = 1/2 * (Phi_(+1,+1) + Phi_(+1,-1))
     # L_-1 (L_m1) = 1/2 * (Phi_(-1,-1) + Phi_(-1,+1))
     #
-    # Delta_S = S_+1 - S_-1 = 1/2 * (Phi_pp + Phi_np - Phi_pn - Phi_nn)
+    # Delta_S = S_+1 - S_-1 = 1/2 * (Phi_pp + Phi_pn - Phi_nn - Phi_np)
     # Delta_L = L_+1 - L_-1 = 1/2 * (Phi_pp + Phi_pn - Phi_nn - Phi_np)
     
     Phi_pp = group_jacobians_list.get((1, 1))
@@ -678,7 +611,7 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
     bs = batch_size if batch_size is not None else N
     if bs <= 0: bs = N
 
-    # データローダーの作成（評価用）
+    # データローダーの作成 (評価用) 
     dataset = torch.utils.data.TensorDataset(X_data)
     loader = torch.utils.data.DataLoader(dataset, batch_size=bs, shuffle=False)
 
@@ -770,7 +703,7 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
             basis_vectors_test = basis_results_test.pop('vectors', None)
             histories['grad_basis_test'][epoch] = basis_results_test
 
-    # --- 性能差ダイナミクスの要因の分析 ---
+    # --- 性能差のダイナミクスの要因の分析 ---
     if run_gap_factors:
         # この分析は 'analyze_gradient_basis' がTrueでなくても実行される可能性がある
         # その場合，basis_vectors が None になるので，ここで再計算する

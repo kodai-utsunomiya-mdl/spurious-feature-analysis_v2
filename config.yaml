@@ -3,9 +3,9 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_exp_iw_output_mse"
+experiment_name: "wb"
 dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
-loss_function: "mse"          # "logistic" or "mse"
+loss_function: "logistic"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: false
@@ -14,7 +14,7 @@ device: "cuda"                # "cuda" or "cpu"
 # ---------------------------------
 # データセット設定
 # ---------------------------------
-num_train_samples: 10000 # 10000, 50000
+num_train_samples: 50000 # 10000, 50000
 num_test_samples: 9000
 
 # --- 事前特徴抽出器の設定 ---
@@ -54,7 +54,7 @@ feature_extractor_vit_target_block: -1 # デフォルトは最後のブロック
 feature_extractor_vit_aggregation_mode: "mean_pool_all" 
 
 
-# --- ColoredMNIST 特有の設定 ---
+# --- ColoredMNIST固有の設定 ---
 train_correlation: 0.8
 train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
 train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
@@ -72,18 +72,44 @@ hidden_dim: 4096
 # 学習設定
 # ---------------------------------
 epochs: 20000
-train_batch_size: 10000   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
-eval_batch_size: 10000    # 評価時のバッチサイズ
+train_batch_size: 50000   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+eval_batch_size: 50000    # 評価時のバッチサイズ
 optimizer: "SGD"    # "SGD" or "Adam"
 learning_rate: 0.1
 momentum: 0.0
 fix_final_layer: false  # trueにすると最終層の重みを固定
 
 # --- バイアス除去手法の選択 ---
-debias_method: "IW_uniform" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
+debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # --- Group DRO Settings ---
 dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
+
+# --- カーネル正則化設定 ---
+# スプリアス相関緩和のためのカーネル値 (内積) 制御
+use_kernel_regularization: false # true で有効化
+
+# 3項それぞれの正則化強度を個別に設定 (カーネル値)
+kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
+kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
+kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
+
+# --- コサイン類似度正則化 (新規追加) ---
+# スプリアス相関緩和のためのコサイン類似度制御 (カーネル正則化と併用可能)
+use_cosine_regularization: false # true で有効化
+
+# 3項それぞれの正則化強度を個別に設定 (コサイン類似度)
+cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
+cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
+cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
+
+# --- 正則化のスケジューリング (新規追加) ---
+# 指定したエポック以降は正則化を無効化する (null または指定なしの場合は常に有効)
+# 例: 100 と設定すると，Epoch 0～99 までは有効，Epoch 100 以降は無効になる
+regularization_end_epoch: 20000
+# regularization_decay_start_epoch: 減衰を開始するエポック (オプション)
+regularization_decay_start_epoch: 300
+
 
 # ------------------------------------------
 # 解析・可視化設定
@@ -113,7 +139,7 @@ static_dynamic_decomposition:
 
 # 解析対象データセット ('train', 'test', 'both')
 analysis_target: 'both'
-jacobian_num_samples: 100    # ヤコビアンを計算するためのグループから使用するサンプル数
+jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数 (カーネル正則化でも使用)
 # グループ勾配計算 (Basis/GapFactors/StaticDynamic用) のサンプル数 (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
 show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか

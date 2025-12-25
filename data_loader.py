@@ -5,7 +5,6 @@ import os
 import numpy as np
 from torchvision.datasets import MNIST
 from torchvision import transforms
-from torch.utils.data import TensorDataset, DataLoader, Subset
 import zipfile
 import pandas as pd
 from PIL import Image

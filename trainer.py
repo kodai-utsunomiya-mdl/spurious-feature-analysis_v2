@@ -4,6 +4,109 @@ import torch
 import numpy as np
 from utils import get_loss_function
 
+def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, num_samples, device, kernel_reg_weights=None, cosine_reg_weights=None):
+    """
+    指定された条件に基づいて正則化項 (カーネル値またはコサイン類似度) を計算する．
+    Args:
+        model: 学習モデル
+        X_train, y_train, a_train: 全学習データ
+        group_keys: グループのリスト [(y, a), ...]
+        num_samples: ヤコビアン計算に使用するサンプル数 (jacobian_num_samples)
+        device: デバイス
+        kernel_reg_weights: カーネル正則化の各条件の重みを格納した辞書 (Noneの場合は計算しない)
+        cosine_reg_weights: コサイン類似度正則化の各条件の重みを格納した辞書 (Noneの場合は計算しない)
+    Returns:
+        total_reg_loss: 正則化損失の合計 (scalar tensor)
+    """
+    # 1. 各グループの平均勾配 (Mean Gradient) を計算
+    # m_g = E[nabla f(x)]
+    group_mean_grads = {}
+    
+    for g in group_keys:
+        y_val, a_val = g
+        mask = (y_train == y_val) & (a_train == a_val)
+        indices = torch.where(mask)[0]
+        
+        if len(indices) == 0:
+            continue
+            
+        # サンプリング (jacobian_num_samples)
+        if len(indices) > num_samples:
+            # ランダムサンプリング
+            perm = torch.randperm(len(indices))
+            selected_indices = indices[perm[:num_samples]]
+        else:
+            selected_indices = indices
+            
+        X_sub = X_train[selected_indices].to(device)
+        
+        # モデル出力の平均
+        scores, _ = model(X_sub)
+        mean_output = scores.mean()
+        
+        # 平均出力に対するパラメータ勾配を取得
+        # create_graph=True にして，この勾配自体をさらに微分可能にする (正則化のため)
+        grads = torch.autograd.grad(mean_output, model.parameters(), create_graph=True)
+        
+        # フラット化して保存
+        flat_grad = torch.cat([g.view(-1) for g in grads])
+        group_mean_grads[g] = flat_grad
+
+    # 2. 正則化項の計算
+    total_reg_loss = torch.tensor(0.0, device=device)
+    epsilon = 1e-8 # ゼロ除算防止用
+    
+    # 全ペアについて計算
+    existing_keys = [k for k in group_keys if k in group_mean_grads]
+    
+    for i in range(len(existing_keys)):
+        for j in range(i + 1, len(existing_keys)):
+            g_u = existing_keys[i]
+            g_v = existing_keys[j]
+            
+            y_u, a_u = g_u
+            y_v, a_v = g_v
+            
+            vec_u = group_mean_grads[g_u]
+            vec_v = group_mean_grads[g_v]
+            
+            # カーネル値 (内積)
+            dot_val = torch.dot(vec_u, vec_v)
+            
+            # --- カーネル正則化 (Kernel Regularization) ---
+            if kernel_reg_weights is not None:
+                # 条件1: 属性が同じでラベルが異なる (Minimize)
+                if (y_u != y_v) and (a_u == a_v):
+                    total_reg_loss = total_reg_loss + (kernel_reg_weights.get('sameA_diffY', 0.0) * dot_val)
+                # 条件2: 属性が異なりラベルも異なる (Minimize)
+                elif (y_u != y_v) and (a_u != a_v):
+                    total_reg_loss = total_reg_loss + (kernel_reg_weights.get('diffA_diffY', 0.0) * dot_val)
+                # 条件3: 属性が異なりラベルが同じ (Maximize)
+                elif (y_u == y_v) and (a_u != a_v):
+                    total_reg_loss = total_reg_loss - (kernel_reg_weights.get('diffA_sameY', 0.0) * dot_val)
+
+            # --- コサイン類似度正則化 (Cosine Similarity Regularization) ---
+            if cosine_reg_weights is not None:
+                # ノルム計算
+                norm_u = torch.norm(vec_u)
+                norm_v = torch.norm(vec_v)
+                
+                # コサイン類似度
+                cosine_val = dot_val / (norm_u * norm_v + epsilon)
+                
+                # 条件1: 属性が同じでラベルが異なる (Minimize -> 逆向き化)
+                if (y_u != y_v) and (a_u == a_v):
+                    total_reg_loss = total_reg_loss + (cosine_reg_weights.get('sameA_diffY', 0.0) * cosine_val)
+                # 条件2: 属性が異なりラベルも異なる (Minimize -> 逆向き化)
+                elif (y_u != y_v) and (a_u != a_v):
+                    total_reg_loss = total_reg_loss + (cosine_reg_weights.get('diffA_diffY', 0.0) * cosine_val)
+                # 条件3: 属性が異なりラベルが同じ (Maximize -> 同じ向き化)
+                elif (y_u == y_v) and (a_u != a_v):
+                    total_reg_loss = total_reg_loss - (cosine_reg_weights.get('diffA_sameY', 0.0) * cosine_val)
+                
+    return total_reg_loss
+
+
 def train_epoch(
     config, 
     model, 
@@ -26,6 +129,70 @@ def train_epoch(
     GroupDROの場合，更新された dro_q_weights を返す．
     """
     model.train()
+
+    # --- 正則化スケジューリング (減衰係数の計算) ---
+    # config.yaml から設定を読み込む
+    reg_end_epoch = config.get('regularization_end_epoch', None)
+    reg_decay_start_epoch = config.get('regularization_decay_start_epoch', None)
+    
+    # デフォルトは強度 1.0 (減衰なし)
+    reg_weight_factor = 1.0
+    
+    if reg_end_epoch is not None:
+        if epoch >= reg_end_epoch:
+            # 終了エポックを超えたら完全に無効化
+            reg_weight_factor = 0.0
+        elif reg_decay_start_epoch is not None and epoch >= reg_decay_start_epoch:
+            # 減衰期間中: Linear Decay (1.0 -> 0.0)
+            # progress: 0.0 (start) -> 1.0 (end)
+            total_decay_steps = reg_end_epoch - reg_decay_start_epoch
+            if total_decay_steps > 0:
+                progress = (epoch - reg_decay_start_epoch) / float(total_decay_steps)
+                reg_weight_factor = 1.0 - progress
+                
+                # ログ出力 (確認用: 10エポックごと，または減衰開始時に出力)
+                if (epoch + 1) % 10 == 0 or epoch == reg_decay_start_epoch:
+                    print(f"  [Epoch {epoch+1}] Regularization decaying... factor: {reg_weight_factor:.4f}")
+            else:
+                reg_weight_factor = 0.0
+
+    # --- 正則化の設定読み込みと重みの適用 ---
+    # 係数が 0 なら正則化計算自体をスキップするためにフラグを落とす
+    should_apply_reg = False
+    kernel_reg_weights = None
+    cosine_reg_weights = None
+    
+    if reg_weight_factor > 0:
+        # 正則化の有効・無効設定を読み込み
+        use_kernel_reg = config.get('use_kernel_regularization', False)
+        use_cosine_reg = config.get('use_cosine_regularization', False)
+        
+        # カーネル正則化の重み設定 (factor を乗算して減衰させる)
+        if use_kernel_reg:
+            kernel_reg_weights = {
+                'sameA_diffY': config.get('kernel_reg_weight_sameA_diffY', 0.0) * reg_weight_factor,
+                'diffA_diffY': config.get('kernel_reg_weight_diffA_diffY', 0.0) * reg_weight_factor,
+                'diffA_sameY': config.get('kernel_reg_weight_diffA_sameY', 0.0) * reg_weight_factor,
+            }
+            # 重みがすべて0なら無効扱い
+            if not any(w != 0 for w in kernel_reg_weights.values()):
+                kernel_reg_weights = None
+
+        # コサイン類似度正則化の重み設定 (factor を乗算して減衰させる)
+        if use_cosine_reg:
+            cosine_reg_weights = {
+                'sameA_diffY': config.get('cosine_reg_weight_sameA_diffY', 0.0) * reg_weight_factor,
+                'diffA_diffY': config.get('cosine_reg_weight_diffA_diffY', 0.0) * reg_weight_factor,
+                'diffA_sameY': config.get('cosine_reg_weight_diffA_sameY', 0.0) * reg_weight_factor,
+            }
+            # 重みがすべて0なら無効扱い
+            if not any(w != 0 for w in cosine_reg_weights.values()):
+                cosine_reg_weights = None
+
+        should_apply_reg = (kernel_reg_weights is not None) or (cosine_reg_weights is not None)
+
+    # jacobian_num_samples を config から取得 (analysis設定と共有または別途指定)
+    jac_num_samples = config.get('jacobian_num_samples', 100)
 
     # --- 学習ステップの分岐 ---
     if debias_method == 'IW_uniform':
@@ -70,6 +237,15 @@ def train_epoch(
 
                 param.grad = debiased_grad
                 param_idx += 1
+        
+        # --- 正則化の適用 ---
+        if should_apply_reg:
+            reg_loss = compute_regularization_loss(
+                model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
+                kernel_reg_weights, cosine_reg_weights
+            )
+            # 正則化項の勾配を計算して加算
+            reg_loss.backward()
 
         # 3. パラメータ更新
         optimizer.step()
@@ -130,6 +306,14 @@ def train_epoch(
                 param.grad = debiased_grad
                 param_idx += 1
 
+        # --- 正則化の適用 ---
+        if should_apply_reg:
+            reg_loss = compute_regularization_loss(
+                model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
+                kernel_reg_weights, cosine_reg_weights
+            )
+            reg_loss.backward()
+
         # 4. パラメータ更新
         optimizer.step()
 
@@ -140,6 +324,15 @@ def train_epoch(
             optimizer.zero_grad()
             scores, _ = model(X_batch)
             loss = get_loss_function(scores, y_batch, loss_function_name)
+            
+            # --- 正則化の適用 ---
+            if should_apply_reg:
+                reg_loss = compute_regularization_loss(
+                    model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
+                    kernel_reg_weights, cosine_reg_weights
+                )
+                loss = loss + reg_loss
+            
             loss.backward()
             optimizer.step()
     # --- 分岐終了 ---
