@@ -38,7 +38,7 @@ source .venv/bin/activate
 
 # 5. Install Dependencies
 echo "Installing dependencies..."
-uv pip install "numba>=0.59.0" torch torchvision numpy pandas matplotlib pyyaml wandb scikit-learn umap-learn
+uv pip install "numba>=0.59.0" torch torchvision numpy pandas matplotlib pyyaml wandb scikit-learn umap-learn cuml-cu12 --extra-index-url https://pypi.nvidia.com
 
 # --- Main Execution ---
 echo "Starting python main.py..."

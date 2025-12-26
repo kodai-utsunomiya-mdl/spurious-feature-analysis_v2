@@ -9,7 +9,7 @@ loss_function: "logistic"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: false
-use_bias: true               # バイアス項の有無
+use_bias: false               # バイアス項の有無
 use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
 device: "cuda"                # "cuda" or "cpu"
 
@@ -69,7 +69,7 @@ test_attribute_marginal: 0.0    # E[A] (テストセット)
 # モデル設定
 # ---------------------------------
 num_hidden_layers: 4
-hidden_dim: 2048
+hidden_dim: 4096
 
 # --------------------------------
 # 学習設定
@@ -108,7 +108,6 @@ cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが�
 
 # --- 正則化のスケジューリング ---
 # 指定したエポック以降は正則化を無効化する (null または指定なしの場合は常に有効)
-# 例: 100 と設定すると，Epoch 0～99 までは有効，Epoch 100 以降は無効になる
 regularization_end_epoch: 20000
 # regularization_decay_start_epoch: 減衰を開始するエポック (オプション)
 regularization_decay_start_epoch: 300
@@ -121,7 +120,7 @@ regularization_decay_start_epoch: 300
 gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
 static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-umap_analysis_epochs: [0, 10, 100, 1000, 2000] # UMAP可視化を行うエポックリスト
+umap_analysis_epochs: [0, 10, 100, 500, 1000, 1500, 2000] # UMAP/t-SNE可視化を行うエポックリスト
 
 # 性能差ダイナミクス要因の分析設定
 gap_dynamics_factors:
@@ -143,17 +142,24 @@ static_dynamic_decomposition:
 
 # 解析対象データセット ('train', 'test', 'both')
 analysis_target: 'both'
-jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数 (カーネル正則化でも使用)
-# グループ勾配計算 (Basis/GapFactors/StaticDynamic用) のサンプル数 (null の場合は全サンプル使用)
+jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数
+# グループ勾配計算用サンプル数 (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
 show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
 
-# UMAP分析の設定
-analyze_umap_representation: true # TrueでUMAP可視化を有効化
+# 可視化アルゴリズムの選択
+visualization_method: "umap"  # "umap" または "tsne" を指定
+
+# UMAPの設定
+analyze_umap_representation: true # Trueで可視化を有効化
 umap_analysis_target: 'both' # 'train', 'test', 'both'
-umap_num_samples: 5000 # UMAPの計算に使用する最大サンプル数 (多すぎると時間がかかるため)
+umap_num_samples: 50000 # 計算に使用する最大サンプル数
 umap_n_neighbors: 15
 umap_min_dist: 0.1
+
+# t-SNEの設定
+tsne_perplexity: 30.0
+tsne_learning_rate: 200.0
 
 # ---------------------------------
 # 解析の有効/無効フラグ
@@ -180,13 +186,12 @@ dfr_reg: "l1"  # "l1" or "l2"
 dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
 dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
-# --- Validationデータセットの戦略 (Validation Strategy) ---
+# --- Validationデータセット ---
 # 'original': データセット固有のValidationセットを使用する (存在しない場合はTrainから分割せずエラー or スキップになる場合があるため注意)
 # 'split_from_train': Trainデータの一部をValidationとして分割して使用する (Validationセットが存在する場合でも無視してTrainから作る)
 dfr_val_split_strategy: "original" 
-
 # 'split_from_train' の場合に使用するTrainデータの割合 (0.0 ~ 1.0)
-dfr_val_ratio: 0.2 
+dfr_val_ratio: 0.2
 
 # --- DFRを適用する層の指定 ---
 # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ論文の設定．
