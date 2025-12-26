@@ -28,7 +28,7 @@ source .venv/bin/activate
 
 # 3. 依存関係のインストール
 echo "Installing dependencies..."
-uv pip install torch torchvision numpy pandas matplotlib pyyaml wandb
+uv pip install "numba>=0.59.0" torch torchvision numpy pandas matplotlib pyyaml wandb scikit-learn umap-learn
 
 # 4. メインスクリプトの実行
 echo "Starting python main.py..."

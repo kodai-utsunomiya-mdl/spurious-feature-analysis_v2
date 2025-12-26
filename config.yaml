@@ -3,21 +3,22 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_dfr"
-dataset_name: "WaterBirds"  # "ColoredMNIST" or "WaterBirds"
+experiment_name: "wb_dfr_umap"
+dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "logistic"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: false
-use_bias: true               # バイアス項の有無 (muPの場合は Yang et al. (2022), Table 9 に従いスケーリング)
+use_bias: true               # バイアス項の有無
+use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
 device: "cuda"                # "cuda" or "cpu"
 
 # ---------------------------------
 # データセット設定
 # ---------------------------------
-num_train_samples: 50000   # Waterbirdsの最大: 4795
-num_val_samples: 5000   # WaterBirdsなどで使用するValidationデータのサンプル数．# Waterbirdsの最大: 1199
-num_test_samples: 9000  # Waterbirdsの最大: 5794
+num_train_samples: 5000   # Waterbirdsの最大: 4795
+num_val_samples: 3000   # WaterBirdsなどで使用するValidationデータのサンプル数．# Waterbirdsの最大: 1199
+num_test_samples: 6000  # Waterbirdsの最大: 5794
 
 # --- 事前特徴抽出器の設定 ---
 use_feature_extractor: true
@@ -56,7 +57,7 @@ feature_extractor_vit_target_block: -1 # デフォルトは最後のブロック
 feature_extractor_vit_aggregation_mode: "mean_pool_all" 
 
 
-# --- ColoredMNIST固有の設定 ---
+# --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
 train_correlation: 0.8
 train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
 train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
@@ -67,8 +68,8 @@ test_attribute_marginal: 0.0    # E[A] (テストセット)
 # ---------------------------------
 # モデル設定
 # ---------------------------------
-num_hidden_layers: 7
-hidden_dim: 4096
+num_hidden_layers: 4
+hidden_dim: 2048
 
 # --------------------------------
 # 学習設定
@@ -96,7 +97,7 @@ kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが�
 kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
 kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
 
-# --- コサイン類似度正則化 (新規追加) ---
+# --- コサイン類似度正則化 ---
 # スプリアス相関緩和のためのコサイン類似度制御 (カーネル正則化と併用可能)
 use_cosine_regularization: false # true で有効化
 
@@ -105,7 +106,7 @@ cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが�
 cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
 cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
 
-# --- 正則化のスケジューリング (新規追加) ---
+# --- 正則化のスケジューリング ---
 # 指定したエポック以降は正則化を無効化する (null または指定なしの場合は常に有効)
 # 例: 100 と設定すると，Epoch 0～99 までは有効，Epoch 100 以降は無効になる
 regularization_end_epoch: 20000
@@ -120,6 +121,7 @@ regularization_decay_start_epoch: 300
 gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
 static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
+umap_analysis_epochs: [0, 10, 100, 1000, 2000] # UMAP可視化を行うエポックリスト
 
 # 性能差ダイナミクス要因の分析設定
 gap_dynamics_factors:
@@ -145,6 +147,13 @@ jacobian_num_samples: 50000    # ヤコビアンを計算するためのグル�
 # グループ勾配計算 (Basis/GapFactors/StaticDynamic用) のサンプル数 (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
 show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
+
+# UMAP分析の設定
+analyze_umap_representation: true # TrueでUMAP可視化を有効化
+umap_analysis_target: 'both' # 'train', 'test', 'both'
+umap_num_samples: 5000 # UMAPの計算に使用する最大サンプル数 (多すぎると時間がかかるため)
+umap_n_neighbors: 15
+umap_min_dist: 0.1
 
 # ---------------------------------
 # 解析の有効/無効フラグ

@@ -3,6 +3,8 @@
 import numpy as np
 from itertools import combinations
 import torch
+import plotting # plottingをインポート
+import umap
 
 # ==============================================================================
 # ヤコビアン計算のヘルパー関数
@@ -642,12 +644,99 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
 
 
 # ==============================================================================
+# UMAPによる表現学習の可視化
+# ==============================================================================
+def get_layer_representations(model, X_data, device, max_samples=2000):
+    """
+    入力層，全中間層，およびモデル出力の表現を取得する．
+    X_data が大きい場合はランダムサンプリングを行う．
+    Returns:
+        layers_dict (dict): {'Input': np.array, 'Layer 1': np.array, ..., 'Output': np.array}
+        indices (np.array): サンプリングされたインデックス
+    """
+    if umap is None:
+        return {}, np.array([])
+    
+    N = len(X_data)
+    if max_samples is not None and N > max_samples:
+        indices = np.random.choice(N, max_samples, replace=False)
+        X_sub = X_data[indices]
+    else:
+        indices = np.arange(N)
+        X_sub = X_data
+
+    model.eval()
+    
+    # データをフラット化してInputとする (画像の場合など)
+    input_repr = X_sub.view(len(X_sub), -1).cpu().numpy()
+    
+    layers_dict = {'Input': input_repr}
+    
+    # Forward Pass で中間層出力を取得
+    X_sub = X_sub.to(device)
+    with torch.no_grad():
+        logits, outputs_dict = model(X_sub)
+    
+    # outputs_dict: {'layer_1': ..., 'layer_2': ..., 'logit': ...}
+    
+    # layer_keys をソート (layer_1, layer_2, ...)
+    layer_keys = sorted([k for k in outputs_dict.keys() if k.startswith('layer_')])
+    
+    for k in layer_keys:
+        # キーを整形 (layer_1 -> Layer 1)
+        new_key = k.replace('layer_', 'Layer ').replace('_', ' ')
+        layers_dict[new_key] = outputs_dict[k].cpu().numpy()
+        
+    # モデル出力 (logit)
+    layers_dict['Output (Logit)'] = logits.cpu().unsqueeze(1).numpy() # (N, 1)
+    
+    return layers_dict, indices
+
+def run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, save_dir):
+    """
+    UMAP分析を実行し，プロットを作成・保存する
+    """
+    if umap is None:
+        return
+
+    print(f"\nRunning UMAP Visualization Analysis at Epoch {epoch}...")
+    
+    target = config.get('umap_analysis_target', 'both')
+    n_samples = config.get('umap_num_samples', 2000)
+    
+    train_layers = {}
+    test_layers = {}
+    train_indices, test_indices = [], []
+    
+    # Trainデータの取得
+    if target in ['train', 'both']:
+        train_layers, train_indices = get_layer_representations(model, X_train, config['device'], max_samples=n_samples)
+        
+    # Testデータの取得
+    if target in ['test', 'both']:
+        test_layers, test_indices = get_layer_representations(model, X_test, config['device'], max_samples=n_samples)
+
+    # ラベルデータのサブサンプリング
+    y_tr_sub, a_tr_sub = (y_train[train_indices].cpu().numpy(), a_train[train_indices].cpu().numpy()) if len(train_indices) > 0 else (None, None)
+    y_te_sub, a_te_sub = (y_test[test_indices].cpu().numpy(), a_test[test_indices].cpu().numpy()) if len(test_indices) > 0 else (None, None)
+
+    # プロットの作成
+    plotting.plot_umap_grid(
+        train_layers, y_tr_sub, a_tr_sub,
+        test_layers, y_te_sub, a_te_sub,
+        epoch, save_dir, config
+    )
+
+
+# ==============================================================================
 # 全ての分析を統括するラッパー関数
 # ==============================================================================
 def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
                      X_train, y_train, a_train, X_test, y_test, a_test, histories,
                      history): 
     """設定に基づいてすべての分析を実行し，結果をhistory辞書に保存する"""
+    result_dir = config.get('result_dir', '.') # main.pyでセットすることを想定，なければカレント
+
     analysis_target = config['analysis_target']
 
     # --- フラグの決定 ---
@@ -656,6 +745,11 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
     run_jacobian_norm = config.get('analyze_jacobian_norm', False)
     run_static_dynamic = config.get('analyze_static_dynamic_decomposition', False)
     run_output_exp = config.get('analyze_model_output_expectation', False)
+    
+    # UMAP分析のチェック
+    umap_epochs = config.get('umap_analysis_epochs', [])
+    run_umap = config.get('analyze_umap_representation', False) and (umap_epochs is not None and epoch in umap_epochs)
+
 
     # --- グループ勾配の計算 (Basis, GapFactors, StaticDynamic が依存) ---
     group_grads_train, group_grads_test = None, None
@@ -746,3 +840,11 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs,
         if analysis_target in ['test', 'both']:
             histories['model_output_exp_test'][epoch] = analyze_model_output_expectation(
                 model, X_test, y_test, a_test, config['device'], eval_bs)
+    
+    # --- UMAP分析 ---
+    if run_umap:
+         # ディレクトリパスを渡す必要があるため，main.pyでセットした値を取得
+         save_dir = config.get('result_dir', '.') # フォールバック
+         run_umap_analysis(
+             config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, save_dir
+         )

@@ -51,6 +51,9 @@ def main(config_path='config.yaml'):
     os.makedirs(result_dir, exist_ok=True)
     shutil.copy(config_path, os.path.join(result_dir, 'config_used.yaml'))
     print(f"Results will be saved to: {result_dir}")
+    
+    # configにresult_dirを追加 (analysisなどで使用するため)
+    config['result_dir'] = result_dir
 
     # デバイス設定
     device = config['device'] if torch.cuda.is_available() and config['device'] == 'cuda' else "cpu"
@@ -174,6 +177,11 @@ def main(config_path='config.yaml'):
             image_size = 28
             # get_colored_mnist_all を使用して3分割対応 (ValはNoneで返ってくる)
             X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test = data_loader.get_colored_mnist_all(config)
+
+        elif config['dataset_name'] == 'Dominoes':
+            image_size = 224
+            # Dominoesは内部で224x224にリサイズされる
+            X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test = data_loader.get_dominoes_all(config)
 
         elif config['dataset_name'] == 'WaterBirds':
             image_size = 224
@@ -328,14 +336,20 @@ def main(config_path='config.yaml'):
     
     # use_bias を config から読み込む
     use_bias = config.get('use_bias', False)
+    
+    # ゼロ初期化設定を読み込む
+    use_zero_bias_init = config.get('use_zero_bias_initialization', False)
+    
     print(f"Using bias in MLP: {use_bias}")
+    print(f"Using zero bias initialization: {use_zero_bias_init}")
 
     model = model_module.MLP(
         input_dim=input_dim, hidden_dim=config['hidden_dim'],
         num_hidden_layers=config['num_hidden_layers'], activation_fn=config['activation_function'],
         use_skip_connections=config['use_skip_connections'],
         initialization_method=config['initialization_method'],
-        use_bias=use_bias
+        use_bias=use_bias,
+        use_zero_bias_init=use_zero_bias_init
     ).to(device)
     
     # fix_final_layer の処理
@@ -361,14 +375,13 @@ def main(config_path='config.yaml'):
 
 
     if config.get('wandb', {}).get('enable', False):
-        wandb.watch(model, log='all', log_freq=100)
+        wandb.watch(model, log='parameters', log_freq=100)
 
     all_target_layers = [f'layer_{i+1}' for i in range(config['num_hidden_layers'])]
 
-    # 5. 学習・評価ループ
-    print("\n--- 3. Starting Training & Evaluation Loop ---")
-    print(f"Using eval_batch_size: {eval_batch_size if eval_batch_size is not None else 'Full Batch'}")
-    
+    # ==========================================================================
+    # 変数の初期化
+    # ==========================================================================
     history = {k: [] for k in ['train_avg_loss', 'test_avg_loss', 'train_worst_loss', 'test_worst_loss',
                                'train_avg_acc', 'test_avg_acc', 'train_worst_acc', 'test_worst_acc',
                                'train_group_losses', 'test_group_losses', 'train_group_accs', 'test_group_accs']}
@@ -380,6 +393,55 @@ def main(config_path='config.yaml'):
         'static_dynamic_decomp_train', 'static_dynamic_decomp_test',
         'model_output_exp_train', 'model_output_exp_test'
     ]}
+
+    # ==========================================================================
+    # 初期化直後 (Epoch 0) の分析
+    # ==========================================================================
+    if any(0 in config.get(key, []) for key in [
+        'umap_analysis_epochs', 
+        'gradient_basis_analysis_epochs',
+        'gap_dynamics_factors_analysis_epochs',
+        'jacobian_norm_analysis_epochs',
+        'static_dynamic_decomposition_analysis_epochs',
+        'model_output_expectation_analysis_epochs'
+    ]):
+        print(f"\n{'='*25} INITIAL ANALYSIS (EPOCH 0) {'='*25}")
+        
+        # Epoch 0 用の実行フラグ判定
+        current_epoch = 0
+        def should_run_init(analysis_name, epoch_list_name):
+            if not config.get(analysis_name, False): return False
+            epoch_list = config.get(epoch_list_name)
+            return epoch_list is not None and 0 in epoch_list
+
+        run_grad_basis = should_run_init('analyze_gradient_basis', 'gradient_basis_analysis_epochs')
+        run_gap_factors = should_run_init('analyze_gap_dynamics_factors', 'gap_dynamics_factors_analysis_epochs')
+        run_jacobian_norm = should_run_init('analyze_jacobian_norm', 'jacobian_norm_analysis_epochs')
+        run_static_dynamic = should_run_init('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
+        run_output_exp = should_run_init('analyze_model_output_expectation', 'model_output_expectation_analysis_epochs')
+        run_umap = should_run_init('analyze_umap_representation', 'umap_analysis_epochs')
+
+        # 実行用のConfigを作成
+        temp_config = config.copy()
+        temp_config['analyze_gradient_basis'] = run_grad_basis
+        temp_config['analyze_gap_dynamics_factors'] = run_gap_factors
+        temp_config['analyze_jacobian_norm'] = run_jacobian_norm
+        temp_config['analyze_static_dynamic_decomposition'] = run_static_dynamic
+        temp_config['analyze_model_output_expectation'] = run_output_exp
+        temp_config['analyze_umap_representation'] = run_umap
+
+        # 分析の実行
+        analysis.run_all_analyses(
+            temp_config, current_epoch, all_target_layers, model, None, None,
+            X_train, y_train, a_train, X_test, y_test, a_test, analysis_histories,
+            history
+        )
+        print(f"{'='*25} END OF INITIAL ANALYSIS {'='*27}\n")
+
+
+    # 5. 学習・評価ループ
+    print("\n--- 3. Starting Training & Evaluation Loop ---")
+    print(f"Using eval_batch_size: {eval_batch_size if eval_batch_size is not None else 'Full Batch'}")
     
     for epoch in range(config['epochs']):
         
@@ -456,8 +518,10 @@ def main(config_path='config.yaml'):
         run_jacobian_norm = should_run('analyze_jacobian_norm', 'jacobian_norm_analysis_epochs')
         run_static_dynamic = should_run('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
         run_output_exp = should_run('analyze_model_output_expectation', 'model_output_expectation_analysis_epochs')
+        # UMAP分析の実行判定
+        run_umap = should_run('analyze_umap_representation', 'umap_analysis_epochs')
 
-        run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic or run_output_exp
+        run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic or run_output_exp or run_umap
 
         if run_any_analysis:
             print(f"\n{'='*25} CHECKPOINT ANALYSIS @ EPOCH {current_epoch} {'='*25}")
@@ -470,6 +534,7 @@ def main(config_path='config.yaml'):
             temp_config['analyze_jacobian_norm'] = run_jacobian_norm
             temp_config['analyze_static_dynamic_decomposition'] = run_static_dynamic
             temp_config['analyze_model_output_expectation'] = run_output_exp
+            temp_config['analyze_umap_representation'] = run_umap
 
             analysis.run_all_analyses(
                 temp_config, current_epoch, all_target_layers, model, train_outputs, test_outputs,

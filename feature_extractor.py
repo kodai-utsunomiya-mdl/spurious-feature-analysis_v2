@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import TensorDataset, DataLoader
 import torchvision.models as models
 from torchvision import transforms
+import warnings
 
 # torchvision.models.feature_extraction をインポート
 try:
@@ -321,7 +322,12 @@ def setup_feature_extractor(config):
             
             try:
                 # torch.hub.set_dir('.') # 保存場所をカレントディレクトリに指定したい場合
-                base_model = torch.hub.load('facebookresearch/dinov2', hub_model_name)
+                
+                # xFormers 関連の警告を抑制
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*xFormers is not available.*")
+                    base_model = torch.hub.load('facebookresearch/dinov2', hub_model_name)
+                    
                 output_dim = model_output_dim # マッピングから取得した次元
             except Exception as e:
                 print(f"Failed to load DINOv2 model '{hub_model_name}' from torch.hub: {e}")

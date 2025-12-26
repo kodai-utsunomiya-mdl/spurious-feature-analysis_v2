@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import umap
 
 ot = None 
 
@@ -344,6 +345,121 @@ def plot_model_output_expectations(history_train, history_test, save_dir):
         
         fig2.tight_layout(rect=[0, 0, 0.85, 0.96])
         _save_and_close(fig2, save_dir, 'model_output_stds.png')
+
+# ==============================================================================
+# UMAP可視化プロット関数
+# ==============================================================================
+def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, epoch, save_dir, config):
+    """
+    指定された層の表現をUMAPで可視化し，2行xN列のグリッドで保存する
+    """
+    if umap is None:
+        print("Warning: UMAP is not installed. Skipping plot.")
+        return
+
+    # 共通のUMAPパラメータ
+    n_neighbors = config.get('umap_n_neighbors', 15)
+    min_dist = config.get('umap_min_dist', 0.1)
+    
+    # 層の名前リストを取得 (Train/Testどちらか片方でもあればOK)
+    layer_names = []
+    if train_layers:
+        layer_names = list(train_layers.keys())
+    elif test_layers:
+        layer_names = list(test_layers.keys())
+        
+    # キーの順序を保証: 'Input', 'Layer 1'..., 'Output'
+    def sort_key(name):
+        if name.startswith('Input'): return -1
+        if name.startswith('Output'): return 9999
+        try:
+            return int(name.split(' ')[1])
+        except:
+            return 0
+    layer_names = sorted(layer_names, key=sort_key)
+    
+    n_cols = len(layer_names)
+    
+    # 行数の決定 (Train / Test / Both)
+    target = config.get('umap_analysis_target', 'both')
+    n_rows = 0
+    row_datasets = []
+    
+    if target in ['train', 'both'] and train_layers:
+        n_rows += 1
+        row_datasets.append(('Train', train_layers, train_y, train_a))
+    if target in ['test', 'both'] and test_layers:
+        n_rows += 1
+        row_datasets.append(('Test', test_layers, test_y, test_a))
+        
+    if n_rows == 0:
+        return
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
+    # 1行または1列の場合，axesは1次元配列になるため修正
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([[axes]])
+    elif n_rows == 1:
+        axes = axes.reshape(1, -1)
+    elif n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    fig.suptitle(f'UMAP Visualization of Layer Representations at Epoch {epoch}', fontsize=20)
+    
+    # グループ定義と色/マーカー
+    # 数式表示用に $ で囲む
+    groups = [
+        {'label': r'$y=-1, a=-1$', 'color': 'cyan',   'marker': 'o', 'cond': lambda y, a: (y == -1) & (a == -1)},
+        {'label': r'$y=-1, a=+1$', 'color': 'blue',   'marker': 'x', 'cond': lambda y, a: (y == -1) & (a == 1)},
+        {'label': r'$y=+1, a=-1$', 'color': 'orange', 'marker': 'o', 'cond': lambda y, a: (y == 1) & (a == -1)},
+        {'label': r'$y=+1, a=+1$', 'color': 'red',    'marker': 'x', 'cond': lambda y, a: (y == 1) & (a == 1)},
+    ]
+
+    for r_idx, (set_name, layers_data, y_data, a_data) in enumerate(row_datasets):
+        for c_idx, layer_name in enumerate(layer_names):
+            ax = axes[r_idx, c_idx]
+            data = layers_data[layer_name]
+            
+            # --- UMAP計算 ---
+            if data.shape[1] > 2: # 次元が2より大きい場合のみ削減
+                # UMAPは決定論的ではないため，比較のためにrandom_stateを固定
+                # Warning対策: random_stateを指定する場合は n_jobs=1 を明示する
+                reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, n_components=2, 
+                                    random_state=42, n_jobs=1)
+                embedding = reducer.fit_transform(data)
+            elif data.shape[1] == 2:
+                embedding = data
+            else: # 1次元 (Outputなど)
+                # y軸を0にして2次元化
+                embedding = np.hstack([data, np.zeros_like(data)])
+            
+            # --- プロット ---
+            for g in groups:
+                mask = g['cond'](y_data, a_data)
+                if mask.sum() > 0:
+                    # Warning対策: unfilled marker 'x' に対して edgecolors='none' を渡さない
+                    scatter_kwargs = {
+                        'c': g['color'],
+                        'marker': g['marker'],
+                        'label': g['label'],
+                        'alpha': 0.6,
+                        's': 15
+                    }
+                    if g['marker'] != 'x':
+                         scatter_kwargs['edgecolors'] = 'none'
+
+                    ax.scatter(embedding[mask, 0], embedding[mask, 1], **scatter_kwargs)
+            
+            ax.set_title(f"{set_name} - {layer_name}")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            
+            # 凡例は最初のプロットのみ (または外側) に表示
+            if r_idx == 0 and c_idx == n_cols - 1:
+                ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10)
+
+    fig.tight_layout(rect=[0, 0, 0.9, 0.95])
+    _save_and_close(fig, save_dir, f"umap_layers_epoch_{epoch}.png")
 
 
 # ==============================================================================

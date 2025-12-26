@@ -3,20 +3,20 @@
 import torch
 import os
 import numpy as np
-from torchvision.datasets import MNIST
+from torchvision.datasets import MNIST, CIFAR10
 from torchvision import transforms
 import zipfile
 import pandas as pd
 from PIL import Image
 import sys
 
-# 'wilds'ライブラリのインポート
-try:
-    import wilds
-except ImportError:
-    print("Warning: 'wilds' library not found. WaterBirds dataset will not be available.")
-    print("Please install it using: pip install wilds")
-    wilds = None
+# # 'wilds'ライブラリのインポート
+# try:
+#     import wilds
+# except ImportError:
+#     print("Warning: 'wilds' library not found. WaterBirds dataset will not be available.")
+#     print("Please install it using: pip install wilds")
+#     wilds = None
 
 def colorize_mnist(images_all, labels_0_9_all, num_samples, label_marginal, attribute_marginal, correlation):
     """ 
@@ -258,3 +258,174 @@ def get_waterbirds_dataset(num_train, num_val, num_test, image_size):
     a_test_pm1 = a_test_01.float() * 2.0 - 1.0
 
     return X_train, y_train_pm1, a_train_pm1, X_val, y_val_pm1, a_val_pm1, X_test, y_test_pm1, a_test_pm1
+
+def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_targets, 
+                          num_samples, label_marginal, attribute_marginal, correlation, 
+                          image_size=224, seed=None):
+    """
+    Dominoesデータセット (MNIST + CIFAR10) を生成
+    Top: MNIST (0/1) -> Spurious Attribute (0: -1, 1: +1)
+    Bottom: CIFAR10 (Car/Truck) -> Core Label (Car: -1, Truck: +1)
+    
+    正規化: [0, 1] 範囲の float32 (他のデータセットと厳密に一致)
+    """
+    if seed is not None:
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+    # 1. ターゲットと属性の定義
+    # MNIST: 0 -> A=-1, 1 -> A=+1
+    # CIFAR: Car(1) -> Y=-1, Truck(9) -> Y=+1
+    
+    # 2. データのフィルタリング
+    mnist_mask_0 = (mnist_targets == 0)
+    mnist_mask_1 = (mnist_targets == 1)
+    # CIFARのターゲットはリスト形式の場合があるためTensor化
+    cifar_tensor_targets = torch.tensor(cifar_targets)
+    cifar_mask_car = (cifar_tensor_targets == 1)
+    cifar_mask_truck = (cifar_tensor_targets == 9)
+
+    mnist_indices_0 = torch.where(mnist_mask_0)[0].numpy()
+    mnist_indices_1 = torch.where(mnist_mask_1)[0].numpy()
+    cifar_indices_car = torch.where(cifar_mask_car)[0].numpy()
+    cifar_indices_truck = torch.where(cifar_mask_truck)[0].numpy()
+
+    # 3. グループごとのサンプル数計算 (colorize_mnistと同様のロジックを使用)
+    y_bar = label_marginal
+    a_bar = attribute_marginal
+    rho_train = correlation
+    
+    # E[YA] = Cov(Y,A) + E[Y]E[A]
+    E_ya = rho_train + y_bar * a_bar
+    
+    pi_pp = (1 + y_bar + a_bar + E_ya) / 4.0 # Y=+1 (Truck), A=+1 (1)
+    pi_pn = (1 + y_bar - a_bar - E_ya) / 4.0 # Y=+1 (Truck), A=-1 (0)
+    pi_np = (1 - y_bar + a_bar - E_ya) / 4.0 # Y=-1 (Car), A=+1 (1)
+    pi_nn = (1 - y_bar - a_bar + E_ya) / 4.0 # Y=-1 (Car), A=-1 (0)
+    
+    probabilities = [pi_pp, pi_pn, pi_np, pi_nn]
+    if not all(p >= -1e-6 for p in probabilities):
+        raise ValueError(f"Invalid statistics result in negative probabilities: {probabilities}")
+
+    counts = [int(np.round(num_samples * p)) for p in probabilities]
+    # 丸め誤差調整
+    if sum(counts) != num_samples:
+        counts[np.argmax(counts)] += num_samples - sum(counts)
+    N_pp, N_pn, N_np, N_nn = counts
+
+    # 4. サンプリング (データ数が足りない場合は重複を許容)
+    def sample_indices(pool, n):
+        replace = len(pool) < n
+        return np.random.choice(pool, n, replace=replace)
+
+    # Pairs: (CIFAR, MNIST)
+    # Group PP: Truck (+1), 1 (+1)
+    idx_c_pp = sample_indices(cifar_indices_truck, N_pp)
+    idx_m_pp = sample_indices(mnist_indices_1, N_pp)
+    
+    # Group PN: Truck (+1), 0 (-1)
+    idx_c_pn = sample_indices(cifar_indices_truck, N_pn)
+    idx_m_pn = sample_indices(mnist_indices_0, N_pn)
+    
+    # Group NP: Car (-1), 1 (+1)
+    idx_c_np = sample_indices(cifar_indices_car, N_np)
+    idx_m_np = sample_indices(mnist_indices_1, N_np)
+
+    # Group NN: Car (-1), 0 (-1)
+    idx_c_nn = sample_indices(cifar_indices_car, N_nn)
+    idx_m_nn = sample_indices(mnist_indices_0, N_nn)
+
+    # 統合
+    cifar_indices_all = np.concatenate([idx_c_pp, idx_c_pn, idx_c_np, idx_c_nn])
+    mnist_indices_all = np.concatenate([idx_m_pp, idx_m_pn, idx_m_np, idx_m_nn])
+    
+    # ラベルと属性の作成 (-1, +1 形式)
+    # Y: -1 (Car), +1 (Truck)
+    # A: -1 (0), +1 (1)
+    y_labels = torch.cat([
+        torch.ones(N_pp + N_pn),     # Truck (+1)
+        torch.ones(N_np + N_nn) * -1 # Car (-1)
+    ])
+    a_labels = torch.cat([
+        torch.ones(N_pp),          # A=+1
+        torch.ones(N_pn) * -1,     # A=-1
+        torch.ones(N_np),          # A=+1
+        torch.ones(N_nn) * -1      # A=-1
+    ])
+
+    # 5. 画像生成と結合
+    # 正規化: [0, 1] に統一 (ColoredMNIST, WaterBirdsと同じ)
+    
+    # MNIST処理: (N, 28, 28) -> Resize(32, 32) -> RGB -> Tensor(N, 3, 32, 32)
+    mnist_raw = mnist_images[mnist_indices_all].float() / 255.0
+    mnist_raw = mnist_raw.unsqueeze(1) # (N, 1, 28, 28)
+    resize_32 = transforms.Resize((32, 32), antialias=True)
+    mnist_32 = resize_32(mnist_raw)
+    mnist_rgb = torch.cat([mnist_32]*3, dim=1) # (N, 3, 32, 32)
+
+    # CIFAR処理: (N, 32, 32, 3) numpy -> Tensor(N, 3, 32, 32)
+    cifar_raw_np = cifar_images[cifar_indices_all]
+    cifar_tensor = torch.from_numpy(cifar_raw_np).float().permute(0, 3, 1, 2) / 255.0 # (N, 3, 32, 32)
+
+    # 結合 (縦方向 dim=2) -> (N, 3, 64, 32)
+    # 上: MNIST (Spurious), 下: CIFAR (Core)
+    combined = torch.cat([mnist_rgb, cifar_tensor], dim=2)
+    
+    # 最終リサイズ -> (N, 3, image_size, image_size)
+    final_resize = transforms.Resize((image_size, image_size), antialias=True)
+    final_images = final_resize(combined)
+    
+    # シャッフル
+    perm = torch.randperm(num_samples)
+    
+    return final_images[perm], y_labels[perm], a_labels[perm]
+
+def get_dominoes_all(config):
+    """ Dominoesデータセット (Train/Val/Test) を取得 """
+    print("Preparing Dominoes dataset...")
+    # ResNet/ViTなどの特徴抽出器に入力するため224x224に統一
+    image_size = 224 
+    
+    # データロード
+    mnist_train = MNIST('./data', train=True, download=True)
+    mnist_test = MNIST('./data', train=False, download=True)
+    cifar_train = CIFAR10('./data', train=True, download=True)
+    cifar_test = CIFAR10('./data', train=False, download=True)
+
+    # Train
+    print("Generating Dominoes Train set...")
+    X_train, y_train, a_train = create_dominoes_dataset(
+        mnist_train.data, mnist_train.targets, 
+        cifar_train.data, cifar_train.targets,
+        config['num_train_samples'], 
+        config.get('train_label_marginal', 0.0),
+        config.get('train_attribute_marginal', 0.0),
+        config['train_correlation'],
+        image_size, seed=42
+    )
+
+    # Val (Trainソースから生成)
+    print("Generating Dominoes Validation set...")
+    X_val, y_val, a_val = create_dominoes_dataset(
+        mnist_train.data, mnist_train.targets, 
+        cifar_train.data, cifar_train.targets,
+        config['num_val_samples'],
+        config.get('train_label_marginal', 0.0), 
+        config.get('train_attribute_marginal', 0.0),
+        config['train_correlation'],
+        image_size, seed=100 # Trainと異なるシードで生成
+    )
+
+    # Test (Testソースから生成)
+    print("Generating Dominoes Test set...")
+    X_test, y_test, a_test = create_dominoes_dataset(
+        mnist_test.data, mnist_test.targets, 
+        cifar_test.data, cifar_test.targets,
+        config['num_test_samples'], 
+        config.get('test_label_marginal', 0.0),
+        config.get('test_attribute_marginal', 0.0),
+        config['test_correlation'],
+        image_size, seed=2023
+    )
+    
+    return X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test
