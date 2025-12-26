@@ -1,0 +1,21 @@
+# Python build artifacts
+__pycache__/
+
+# Virtual Environment
+.venv/
+
+# Project Data
+data/
+
+# Project Artifacts
+results/
+features_cache/
+
+# Logging
+logs/
+wandb/
+
+# OS / IDE specific
+.DS_Store
+.vscode/
+.idea/
