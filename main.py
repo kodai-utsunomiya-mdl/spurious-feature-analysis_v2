@@ -10,6 +10,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
 import wandb
+from torchvision import transforms
 
 # スクリプトをインポート
 import data_loader
@@ -196,6 +197,22 @@ def main(config_path='config.yaml'):
             
         else:
             raise ValueError(f"Unknown dataset: {config['dataset_name']}")
+
+        # --- Grayscale Conversion ---
+        # Feature Extractorを使わない場合 (=Raw Pixel MLP) の次元削減用
+        if config.get('use_grayscale', False):
+            print("Converting images to Grayscale (1 channel)...")
+            grayscale_transform = transforms.Grayscale(num_output_channels=1)
+            
+            if X_train is not None and X_train.dim() == 4:
+                X_train = grayscale_transform(X_train)
+            if X_val is not None and X_val.dim() == 4:
+                X_val = grayscale_transform(X_val)
+            if X_test is not None and X_test.dim() == 4:
+                X_test = grayscale_transform(X_test)
+                
+            print(f"Data shape after grayscale conversion: {X_train.shape}")
+
 
         # 特徴抽出 (必要な場合)
         if use_feature_extractor:
