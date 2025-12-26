@@ -646,10 +646,10 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
 # ==============================================================================
 # UMAPによる表現学習の可視化
 # ==============================================================================
-def get_layer_representations(model, X_data, device, max_samples=2000):
+def get_layer_representations(model, X_data, y_data, a_data, device, max_samples=2000):
     """
     入力層，全中間層，およびモデル出力の表現を取得する．
-    X_data が大きい場合はランダムサンプリングを行う．
+    X_data が大きい場合は，各グループから均等にランダムサンプリングを行う．
     Returns:
         layers_dict (dict): {'Input': np.array, 'Layer 1': np.array, ..., 'Output': np.array}
         indices (np.array): サンプリングされたインデックス
@@ -658,11 +658,37 @@ def get_layer_representations(model, X_data, device, max_samples=2000):
         return {}, np.array([])
     
     N = len(X_data)
+    indices = np.arange(N) # デフォルトは全データ
+
     if max_samples is not None and N > max_samples:
-        indices = np.random.choice(N, max_samples, replace=False)
+        # グループごとの均等サンプリング
+        group_keys = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+        # 4グループで等分 (切り捨て)
+        samples_per_group = max_samples // 4
+        
+        indices_list = []
+        
+        # テンソルをnumpyに変換してマスク作成に使用
+        y_np = y_data.cpu().numpy() if isinstance(y_data, torch.Tensor) else y_data
+        a_np = a_data.cpu().numpy() if isinstance(a_data, torch.Tensor) else a_data
+        
+        for y_val, a_val in group_keys:
+            mask = (y_np == y_val) & (a_np == a_val)
+            group_indices = np.where(mask)[0]
+            
+            n_group = len(group_indices)
+            if n_group > 0:
+                # 必要な数だけサンプリング (足りない場合は全数)
+                n_select = min(n_group, samples_per_group)
+                chosen = np.random.choice(group_indices, n_select, replace=False)
+                indices_list.append(chosen)
+        
+        if indices_list:
+            indices = np.concatenate(indices_list)
+            indices.sort() # インデックス順に戻す
+        
         X_sub = X_data[indices]
     else:
-        indices = np.arange(N)
         X_sub = X_data
 
     model.eval()
@@ -710,13 +736,19 @@ def run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, 
     
     # Trainデータの取得
     if target in ['train', 'both']:
-        train_layers, train_indices = get_layer_representations(model, X_train, config['device'], max_samples=n_samples)
+        # y_train, a_train を渡してバランスサンプリング
+        train_layers, train_indices = get_layer_representations(
+            model, X_train, y_train, a_train, config['device'], max_samples=n_samples
+        )
         
     # Testデータの取得
     if target in ['test', 'both']:
-        test_layers, test_indices = get_layer_representations(model, X_test, config['device'], max_samples=n_samples)
+        # y_test, a_test を渡してバランスサンプリング
+        test_layers, test_indices = get_layer_representations(
+            model, X_test, y_test, a_test, config['device'], max_samples=n_samples
+        )
 
-    # ラベルデータのサブサンプリング
+    # ラベルデータのサブサンプリング (indicesを使って抽出)
     y_tr_sub, a_tr_sub = (y_train[train_indices].cpu().numpy(), a_train[train_indices].cpu().numpy()) if len(train_indices) > 0 else (None, None)
     y_te_sub, a_te_sub = (y_test[test_indices].cpu().numpy(), a_test[test_indices].cpu().numpy()) if len(test_indices) > 0 else (None, None)
 
