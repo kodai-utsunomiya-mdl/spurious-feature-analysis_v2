@@ -3,7 +3,7 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "cm_dfr"
+experiment_name: "cm_dfr_svd"
 dataset_name: "ColoredMNIST"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "logistic"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
@@ -17,7 +17,7 @@ device: "cuda"                # "cuda" or "cpu"
 # ---------------------------------
 # データセット設定
 # ---------------------------------
-num_train_samples: 20000   # Waterbirdsの最大: 4795
+num_train_samples: 10000   # Waterbirdsの最大: 4795
 num_test_samples: 9000  # Waterbirdsの最大: 5794
 
 # --- 事前特徴抽出器の設定 ---
@@ -157,6 +157,11 @@ umap_num_samples: 50000 # 計算に使用する最大サンプル数
 umap_n_neighbors: 15
 umap_min_dist: 0.1
 
+# 特異値解析の設定
+analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+singular_values_analysis_target: 'both' # 'train', 'test', 'both'
+singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
+
 # t-SNEの設定
 tsne_perplexity: 30.0
 tsne_learning_rate: 200.0
@@ -211,7 +216,7 @@ dfr_target_layer: "last_hidden"
 # # ---------------------------------
 # # 実験の基本設定
 # # ---------------------------------
-# experiment_name: "wb_dfr"
+# experiment_name: "wb_dfr_svd"
 # dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 # loss_function: "logistic"          # "logistic" or "mse"
 # activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
@@ -226,7 +231,7 @@ dfr_target_layer: "last_hidden"
 # # データセット設定
 # # ---------------------------------
 # num_train_samples: 20000   # Waterbirdsの最大: 4795
-# num_test_samples: 6000  # Waterbirdsの最大: 5794
+# num_test_samples: 9000  # Waterbirdsの最大: 5794
 
 # # --- 事前特徴抽出器の設定 ---
 # use_feature_extractor: false
@@ -282,7 +287,7 @@ dfr_target_layer: "last_hidden"
 # # --------------------------------
 # # 学習設定
 # # ---------------------------------
-# epochs: 10000
+# epochs: 5000
 # train_batch_size: 1024   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
 # eval_batch_size: 1024    # 評価時のバッチサイズ
 # optimizer: "SGD"    # "SGD" or "Adam"
@@ -365,6 +370,11 @@ dfr_target_layer: "last_hidden"
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
 
+# # 特異値解析の設定
+# analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+# singular_values_analysis_target: 'both' # 'train', 'test', 'both'
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
+
 # # t-SNEの設定
 # tsne_perplexity: 30.0
 # tsne_learning_rate: 200.0
@@ -413,6 +423,8 @@ dfr_target_layer: "last_hidden"
 
 
 
+
+
 # #######################################################################
 # #######################################################################
 # #######################################################################
@@ -422,7 +434,7 @@ dfr_target_layer: "last_hidden"
 # # ---------------------------------
 # # 実験の基本設定
 # # ---------------------------------
-# experiment_name: "dominoes_dfr"
+# experiment_name: "dominoes_dfr_svd"
 # dataset_name: "Dominoes"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 # loss_function: "logistic"          # "logistic" or "mse"
 # activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
@@ -493,9 +505,9 @@ dfr_target_layer: "last_hidden"
 # # --------------------------------
 # # 学習設定
 # # ---------------------------------
-# epochs: 10000
-# train_batch_size: 10000   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
-# eval_batch_size: 10000    # 評価時のバッチサイズ
+# epochs: 1000
+# train_batch_size: 1024   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+# eval_batch_size: 1024    # 評価時のバッチサイズ
 # optimizer: "SGD"    # "SGD" or "Adam"
 # learning_rate: 0.1
 # momentum: 0.0
@@ -575,6 +587,11 @@ dfr_target_layer: "last_hidden"
 # umap_num_samples: 50000 # 計算に使用する最大サンプル数
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
+
+# # 特異値解析の設定
+# analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+# singular_values_analysis_target: 'both' # 'train', 'test', 'both'
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0

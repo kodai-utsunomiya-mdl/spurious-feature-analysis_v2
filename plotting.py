@@ -415,7 +415,7 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
         return
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
-    # 1行または1列の場合，axesは1次元配列になるため修正
+    # 1行または1列の場合，axesは1次元配列になる
     if n_rows == 1 and n_cols == 1:
         axes = np.array([[axes]])
     elif n_rows == 1:
@@ -477,6 +477,80 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
 
     fig.tight_layout(rect=[0, 0, 0.9, 0.95])
     _save_and_close(fig, save_dir, f"{method}_layers_epoch_{epoch}.png")
+
+# ==============================================================================
+# 特異値スペクトルのプロット関数
+# ==============================================================================
+def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_dir):
+    """
+    層ごとの特異値スペクトルをプロットする (Train/Testをまとめて処理)
+    """
+    # プロット対象をリスト化
+    datasets = []
+    if train_sv_dict is not None:
+        datasets.append(('Train', train_sv_dict))
+    if test_sv_dict is not None:
+        datasets.append(('Test', test_sv_dict))
+        
+    if not datasets:
+        return
+
+    n_rows = len(datasets)
+    # subplot作成 (n_rows x 1)
+    fig, axes = plt.subplots(n_rows, 1, figsize=(10, 6 * n_rows), squeeze=False)
+    fig.suptitle(f'Layer-wise Singular Value Spectra (Epoch {epoch})', fontsize=16)
+
+    # 共通の層名ソートロジック
+    def get_sorted_layer_names(sv_dict):
+        names = list(sv_dict.keys())
+        def sort_key(name):
+            if name.startswith('Input'): return -1
+            if name.startswith('Output'): return 9999
+            try:
+                return int(name.split(' ')[1])
+            except:
+                return 0
+        return sorted(names, key=sort_key)
+
+    # ランク: 1st, 2nd, 5th, 10th, 20th, 50th, 100th, 200th, 500th
+    ranks_to_plot = [1, 2, 5, 10, 20, 50, 100, 200, 500]
+    colors = plt.cm.viridis(np.linspace(0, 1, len(ranks_to_plot)))
+
+    for idx, (set_name, sv_dict) in enumerate(datasets):
+        ax = axes[idx, 0]
+        layer_names = get_sorted_layer_names(sv_dict)
+        num_layers = len(layer_names)
+        x_indices = np.arange(num_layers)
+        
+        # 特異値をリスト化 (層順)
+        sv_list = [sv_dict[name] for name in layer_names]
+
+        for i, rank in enumerate(ranks_to_plot):
+            vals = []
+            for s_vals in sv_list:
+                if len(s_vals) >= rank:
+                    vals.append(s_vals[rank-1]) # 0-indexed
+                else:
+                    vals.append(np.nan)
+                    
+            # プロット (Log scale)
+            if any(not np.isnan(v) for v in vals):
+                ax.plot(x_indices, vals, marker='o', label=f'Rank {rank}', color=colors[i], alpha=0.8)
+
+        ax.set_title(f'{set_name} Set')
+        ax.set_xticks(x_indices)
+        ax.set_xticklabels(layer_names, rotation=45, ha='right')
+        ax.set_yscale('log')
+        ax.set_ylabel('Singular Value (log scale)')
+        ax.grid(True, which="both", ls="--", alpha=0.5)
+        if idx == 0:
+             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        if idx == n_rows - 1:
+            ax.set_xlabel('Layer')
+
+    fig.tight_layout()
+    _save_and_close(fig, save_dir, f"singular_values_epoch_{epoch}.png")
 
 
 # ==============================================================================

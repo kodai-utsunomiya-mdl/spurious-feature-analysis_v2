@@ -425,13 +425,12 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
 
 
 # ==============================================================================
-# 可視化分析 (UMAP / t-SNE)
+# 可視化 (UMAP / t-SNE) / 特異値解析用 特徴量抽出
 # ==============================================================================
 def get_layer_representations(model, X_data, y_data, a_data, device, max_samples=2000):
     """
     各層の表現を取得する
     """
-    if not plotting.HAS_ANY_VIS_LIB: return {}, np.array([])
     N = len(X_data)
     if max_samples and N > max_samples:
         indices_list = []
@@ -454,7 +453,7 @@ def get_layer_representations(model, X_data, y_data, a_data, device, max_samples
 
 def run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, save_dir):
     """
-    可視化分析を実行する
+    可視化を実行する
     """
     if not plotting.HAS_ANY_VIS_LIB: return
     method = config.get('visualization_method', 'umap')
@@ -466,6 +465,49 @@ def run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, 
     plotting.plot_umap_grid(train_layers, (y_train[train_indices].cpu().numpy() if len(train_indices)>0 else None), (a_train[train_indices].cpu().numpy() if len(train_indices)>0 else None),
                             test_layers, (y_test[test_indices].cpu().numpy() if len(test_indices)>0 else None), (a_test[test_indices].cpu().numpy() if len(test_indices)>0 else None), epoch, save_dir, config)
 
+def run_singular_value_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, save_dir):
+    """
+    各層の特徴行列の特異値を計算しプロットする
+    """
+    if not config.get('analyze_singular_values', False): return
+    print(f"\nRunning Singular Value Analysis at Epoch {epoch}...")
+    
+    target = config.get('singular_values_analysis_target', 'both')
+    n_samples = config.get('singular_values_num_samples', 2000)
+    
+    train_sv_dict = None
+    test_sv_dict = None
+    
+    if target in ['train', 'both']:
+        # Train
+        layers_dict, _ = get_layer_representations(model, X_train, y_train, a_train, config['device'], n_samples)
+        sv_dict = {}
+        for name, data in layers_dict.items():
+            # data: (N, D) numpy array
+            t_data = torch.from_numpy(data).float().to(config['device'])
+            # 特異値計算
+            try:
+                s = torch.linalg.svdvals(t_data)
+                sv_dict[name] = s.cpu().numpy()
+            except Exception as e:
+                print(f"  Warning: SVD failed for layer {name}: {e}")
+        train_sv_dict = sv_dict
+
+    if target in ['test', 'both']:
+        # Test
+        layers_dict, _ = get_layer_representations(model, X_test, y_test, a_test, config['device'], n_samples)
+        sv_dict = {}
+        for name, data in layers_dict.items():
+            t_data = torch.from_numpy(data).float().to(config['device'])
+            try:
+                s = torch.linalg.svdvals(t_data)
+                sv_dict[name] = s.cpu().numpy()
+            except Exception as e:
+                print(f"  Warning: SVD failed for layer {name}: {e}")
+        test_sv_dict = sv_dict
+
+    plotting.plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_dir)
+
 
 # ==============================================================================
 # 全ての分析を統括するラッパー関数
@@ -473,7 +515,11 @@ def run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, 
 def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs, X_train, y_train, a_train, X_test, y_test, a_test, histories, history): 
     result_dir, analysis_target = config.get('result_dir', '.'), config['analysis_target']
     run_grad_basis, run_gap_factors, run_jacobian_norm, run_static_dynamic, run_output_exp = config.get('analyze_gradient_basis', False), config.get('analyze_gap_dynamics_factors', False), config.get('analyze_jacobian_norm', False), config.get('analyze_static_dynamic_decomposition', False), config.get('analyze_model_output_expectation', False)
-    run_umap = config.get('analyze_umap_representation', False) and (epoch in (config.get('umap_analysis_epochs', []) or []))
+    
+    # UMAPと特異値解析は epoch リストで制御
+    is_umap_epoch = (epoch in (config.get('umap_analysis_epochs', []) or []))
+    run_umap = config.get('analyze_umap_representation', False) and is_umap_epoch
+    run_svd = config.get('analyze_singular_values', False) and is_umap_epoch
 
     group_grads_train, group_grads_test = None, None
     if run_grad_basis or run_gap_factors or run_static_dynamic:
@@ -517,4 +563,8 @@ def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs, 
         if analysis_target in ['train', 'both']: histories['model_output_exp_train'][epoch] = analyze_model_output_expectation(model, X_train, y_train, a_train, config['device'], eval_bs)
         if analysis_target in ['test', 'both']: histories['model_output_exp_test'][epoch] = analyze_model_output_expectation(model, X_test, y_test, a_test, config['device'], eval_bs)
     
-    if run_umap: run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, config.get('result_dir', '.'))
+    if run_umap: 
+        run_umap_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, config.get('result_dir', '.'))
+        
+    if run_svd:
+        run_singular_value_analysis(config, model, X_train, y_train, a_train, X_test, y_test, a_test, epoch, config.get('result_dir', '.'))
