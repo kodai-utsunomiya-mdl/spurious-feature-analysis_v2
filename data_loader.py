@@ -9,6 +9,7 @@ import zipfile
 import pandas as pd
 from PIL import Image
 import sys
+import torch.nn.functional as F
 
 # # 'wilds'ライブラリのインポート
 # try:
@@ -156,8 +157,8 @@ def get_colored_mnist(num_samples, correlation, label_marginal, attribute_margin
 
 def get_colored_mnist_all(config):
     """ 
-    CMNISTの全データセットを取得 (Train, Val, Test) 
-    CMNISTにはデフォルトでValがないため，Noneを返す．
+    CMNISTの全データセットを取得 (Train, Test) 
+    Validationは作成しない (use_dfr=TrueのときにTrainから分割する)
     """
     image_size = 28
     train_y_bar = config.get('train_label_marginal', 0.0)
@@ -181,12 +182,13 @@ def get_colored_mnist_all(config):
         train=False
     )
     
-    # CMNISTはデフォルトでValidationセットを持たない
-    return X_train, y_train, a_train, None, None, None, X_test, y_test, a_test
+    # Validationセットは返さない
+    return X_train, y_train, a_train, X_test, y_test, a_test
 
 
-def get_waterbirds_dataset(num_train, num_val, num_test, image_size):
-    """ WaterBirdsデータセットをロード (Train, Val, Test) """
+def get_waterbirds_dataset(num_train, num_test, image_size):
+    """ WaterBirdsデータセットをロード (Train, Test) """
+    # 公式のValidationセット (split=1) はロードしない
     
     data_dir = 'data/waterbirds_v1.0'
     archive_path = os.path.join(data_dir, 'archive.zip')
@@ -241,8 +243,7 @@ def get_waterbirds_dataset(num_train, num_val, num_test, image_size):
     print("Loading Waterbirds Train set...")
     X_train, y_train_01, a_train_01 = get_data_from_split(0, num_train)
     
-    print("Loading Waterbirds Validation set...")
-    X_val, y_val_01, a_val_01 = get_data_from_split(1, num_val) # split=1 が Validation
+    # Validation (split=1) はスキップ
 
     print("Loading Waterbirds Test set...")
     X_test, y_test_01, a_test_01 = get_data_from_split(2, num_test)
@@ -251,13 +252,10 @@ def get_waterbirds_dataset(num_train, num_val, num_test, image_size):
     y_train_pm1 = y_train_01.float() * 2.0 - 1.0
     a_train_pm1 = a_train_01.float() * 2.0 - 1.0 
     
-    y_val_pm1 = y_val_01.float() * 2.0 - 1.0
-    a_val_pm1 = a_val_01.float() * 2.0 - 1.0 
-    
     y_test_pm1 = y_test_01.float() * 2.0 - 1.0
     a_test_pm1 = a_test_01.float() * 2.0 - 1.0
 
-    return X_train, y_train_pm1, a_train_pm1, X_val, y_val_pm1, a_val_pm1, X_test, y_test_pm1, a_test_pm1
+    return X_train, y_train_pm1, a_train_pm1, X_test, y_test_pm1, a_test_pm1
 
 def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_targets, 
                           num_samples, label_marginal, attribute_marginal, correlation, 
@@ -267,7 +265,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     Top: MNIST (0/1) -> Spurious Attribute (0: -1, 1: +1)
     Bottom: CIFAR10 (Car/Truck) -> Core Label (Car: -1, Truck: +1)
     
-    正規化: [0, 1] 範囲の float32 (他のデータセットと厳密に一致)
+    正規化: [0, 1] 範囲の float32 (他のデータセットと一致)
     """
     if seed is not None:
         np.random.seed(seed)
@@ -356,24 +354,47 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     # 5. 画像生成と結合
     # 正規化: [0, 1] に統一 (ColoredMNIST, WaterBirdsと同じ)
     
-    # MNIST処理: (N, 28, 28) -> Resize(32, 32) -> RGB -> Tensor(N, 3, 32, 32)
+    # 目標サイズ
+    target_h, target_w = image_size, image_size # 通常224
+    
+    # --- レイアウト設定 ---
+    # MNISTを小さく，CIFARを大きくする
+    # MNISTの高さ (48px)
+    mnist_fixed_h = 48 
+    # CIFARの高さ (残り全部 = 176px)
+    cifar_fixed_h = target_h - mnist_fixed_h 
+    
+    # --- MNIST処理 ---
+    # (N, 28, 28) -> Resize(48, 48) -> RGB -> Padding to (48, 224)
     mnist_raw = mnist_images[mnist_indices_all].float() / 255.0
     mnist_raw = mnist_raw.unsqueeze(1) # (N, 1, 28, 28)
-    resize_32 = transforms.Resize((32, 32), antialias=True)
-    mnist_32 = resize_32(mnist_raw)
-    mnist_rgb = torch.cat([mnist_32]*3, dim=1) # (N, 3, 32, 32)
+    
+    # 1. 縦横48x48にリサイズ (アスペクト比維持のため正方形に)
+    resize_mnist = transforms.Resize((mnist_fixed_h, mnist_fixed_h), antialias=True)
+    mnist_resized = resize_mnist(mnist_raw) # (N, 1, 48, 48)
+    
+    # 2. RGB化
+    mnist_rgb = torch.cat([mnist_resized]*3, dim=1) # (N, 3, 48, 48)
+    
+    # 3. 左右をパディングして幅224にする (中央配置)
+    pad_left = (target_w - mnist_fixed_h) // 2
+    pad_right = target_w - mnist_fixed_h - pad_left
+    # F.pad引数: (left, right, top, bottom)
+    mnist_final = F.pad(mnist_rgb, (pad_left, pad_right, 0, 0), value=0) # (N, 3, 48, 224)
 
-    # CIFAR処理: (N, 32, 32, 3) numpy -> Tensor(N, 3, 32, 32)
+    # --- CIFAR処理 ---
+    # (N, 32, 32, 3) numpy -> Tensor(N, 3, 32, 32) -> Resize(176, 224)
     cifar_raw_np = cifar_images[cifar_indices_all]
     cifar_tensor = torch.from_numpy(cifar_raw_np).float().permute(0, 3, 1, 2) / 255.0 # (N, 3, 32, 32)
 
-    # 結合 (縦方向 dim=2) -> (N, 3, 64, 32)
-    # 上: MNIST (Spurious), 下: CIFAR (Core)
-    combined = torch.cat([mnist_rgb, cifar_tensor], dim=2)
-    
-    # 最終リサイズ -> (N, 3, image_size, image_size)
-    final_resize = transforms.Resize((image_size, image_size), antialias=True)
-    final_images = final_resize(combined)
+    # 画面下部に引き伸ばす (解像度重視)
+    resize_cifar = transforms.Resize((cifar_fixed_h, target_w), antialias=True)
+    cifar_final = resize_cifar(cifar_tensor) # (N, 3, 176, 224)
+
+    # --- 結合 ---
+    # 縦方向 (dim=2) に結合 -> (N, 3, 224, 224)
+    # 上: MNIST, 下: CIFAR
+    final_images = torch.cat([mnist_final, cifar_final], dim=2)
     
     # シャッフル
     perm = torch.randperm(num_samples)
@@ -381,7 +402,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     return final_images[perm], y_labels[perm], a_labels[perm]
 
 def get_dominoes_all(config):
-    """ Dominoesデータセット (Train/Val/Test) を取得 """
+    """ Dominoesデータセット (Train/Test) を取得 """
     print("Preparing Dominoes dataset...")
     # ResNet/ViTなどの特徴抽出器に入力するため224x224に統一
     image_size = 224 
@@ -404,17 +425,7 @@ def get_dominoes_all(config):
         image_size, seed=42
     )
 
-    # Val (Trainソースから生成)
-    print("Generating Dominoes Validation set...")
-    X_val, y_val, a_val = create_dominoes_dataset(
-        mnist_train.data, mnist_train.targets, 
-        cifar_train.data, cifar_train.targets,
-        config['num_val_samples'],
-        config.get('train_label_marginal', 0.0), 
-        config.get('train_attribute_marginal', 0.0),
-        config['train_correlation'],
-        image_size, seed=100 # Trainと異なるシードで生成
-    )
+    # Val (Validationは作成しない)
 
     # Test (Testソースから生成)
     print("Generating Dominoes Test set...")
@@ -428,4 +439,4 @@ def get_dominoes_all(config):
         image_size, seed=2023
     )
     
-    return X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test
+    return X_train, y_train, a_train, X_test, y_test, a_test

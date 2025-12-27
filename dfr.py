@@ -17,7 +17,7 @@ class DFRTorchModel(nn.Module):
     """
     scikit-learnで学習したロジスティック回帰モデルの重みを取り込み，
     PyTorchモデルとして振る舞うラッパー．
-    これにより，utils.evaluate_model を使用してERMと完全に同じ指標を計算できるようにする．
+    これにより，utils.evaluate_model を使用してERMと同じ指標を計算できるようにする．
     """
     def __init__(self, dfr_coef, dfr_intercept, scaler):
         super().__init__()
@@ -221,6 +221,7 @@ def dfr_train(X_source, y_source, a_source, best_c, scaler, config):
 def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, a_test, device, loss_function_name, X_val=None, y_val=None, a_val=None):
     """
     DFRの実行プロセス全体
+    X_val, y_val, a_val は main.py で事前に分割された Held-out Validation データが渡されることを前提とする
     """
     print("\n" + "="*30)
     print(" Running Deep Feature Reweighting (DFR)")
@@ -241,37 +242,16 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     scaler.fit(train_embeddings)
 
     # Validationデータの準備 (DFRの学習ソース)
-    val_strategy = config.get('dfr_val_split_strategy', 'original')
-    val_ratio = config.get('dfr_val_ratio', 0.2)
+    # main.py で分割されたデータが渡されているはず
+    if X_val is None:
+        raise ValueError("DFR validation data (X_val) is None. Check if use_dfr is enabled and splitting logic in main.py is correct.")
     
-    X_dfr_source = None
-    y_dfr_source = None
-    a_dfr_source = None
-
-    if val_strategy == 'original':
-        if X_val is not None:
-            print("Using ORIGINAL Validation Set for DFR (Author's DFR_Tr^Val setting).")
-            X_dfr_source = get_embeddings(model, X_val, target_layer_name, device=device)
-            y_dfr_source = y_val.cpu().numpy()
-            a_dfr_source = a_val.cpu().numpy()
-        else:
-            print("[Warning] 'original' strategy selected but no Validation set provided. Fallback to 'split_from_train'.")
-            val_strategy = 'split_from_train'
-            
-    if val_strategy == 'split_from_train':
-        print(f"Using SPLIT Validation Set from Train (Ratio: {val_ratio}).")
-        n_train = len(train_embeddings)
-        n_dfr = int(n_train * val_ratio)
-        
-        indices = np.random.permutation(n_train)
-        dfr_idx = indices[:n_dfr] # 前半をDFR用(Validation代わり)に使用
-        
-        X_dfr_source = train_embeddings[dfr_idx]
-        y_dfr_source = y_train.cpu().numpy()[dfr_idx]
-        a_dfr_source = a_train.cpu().numpy()[dfr_idx]
-
-    if X_dfr_source is None:
-        raise ValueError("DFR source data could not be prepared.")
+    print("Extracting embeddings for Validation data...")
+    val_embeddings = get_embeddings(model, X_val, target_layer_name, device=device)
+    
+    X_dfr_source = val_embeddings
+    y_dfr_source = y_val.cpu().numpy()
+    a_dfr_source = a_val.cpu().numpy()
 
     # 2. DFR Tune (Validationを分割してCを決める) - fit済みscalerを渡す
     best_c = dfr_tune(X_dfr_source, y_dfr_source, a_dfr_source, scaler, config)
@@ -282,7 +262,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     # 4. PyTorchモデル化
     dfr_torch_model = DFRTorchModel(avg_coef, avg_intercept, scaler).to(device)
     
-    # 5. 評価 (ERMと完全に同一の指標を使用)
+    # 5. 評価 (ERMと同一の指標を使用)
     print("\n--- DFR Evaluation (Using exact same metrics as ERM) ---")
     
     X_train_emb_tensor = torch.from_numpy(train_embeddings).to(device)
