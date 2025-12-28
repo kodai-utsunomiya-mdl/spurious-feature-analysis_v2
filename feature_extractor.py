@@ -163,10 +163,17 @@ def extract_features(extractor, X_data, device, batch_size=64):
     with torch.no_grad():
         for i, (batch,) in enumerate(loader):
             batch = batch.to(device)
+            
+            # 1チャンネル (白黒) なら3チャンネル (擬似カラー) に複製
+            if batch.shape[1] == 1:
+                # (N, 1, H, W) -> (N, 3, H, W)
+                batch = batch.repeat(1, 3, 1, 1)
+
             # 正規化を適用
             batch_normalized = normalize(batch)
             features = extractor(batch_normalized)
             features_list.append(features.cpu())
+            
             if i % 50 == 0 and i > 0:
                 print(f"  ... processed {i * batch_size} / {len(X_data)} samples")
                 
@@ -263,7 +270,7 @@ def setup_feature_extractor(config):
                 resnet_base.conv1, resnet_base.bn1, resnet_base.relu, resnet_base.maxpool,
                 resnet_base.layer1, resnet_base.layer2,
             ]
-            
+
             if intermediate_layer_name == 'layer3':
                 modules_list.append(resnet_base.layer3)
                 intermediate_channels = layer3_channels
