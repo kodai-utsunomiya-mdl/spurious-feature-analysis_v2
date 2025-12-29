@@ -158,9 +158,7 @@ class MLP(nn.Module):
         self.hidden_layers = nn.ModuleList()
 
         # --- Depth-muP Scaling (1/sqrt(L)) の計算 ---
-        # TP5論文の L は残差ブロックの数に相当．
-        # 本コードでは hidden_layers のループ回数が num_hidden_layers - 1 なので，これが L に相当．
-        residual_blocks_L = num_hidden_layers - 1
+        residual_blocks_L = num_hidden_layers
         
         depth_mult = 1.0
         # muP かつ Skip Connection あり かつ L >= 1 の場合のみスケーリングを適用
@@ -192,7 +190,8 @@ class MLP(nn.Module):
         else:
             print(f"        - Hidden Layers: W mult={hid_w_mult:.2e}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
 
-        for _ in range(num_hidden_layers - 1):
+        # 残差ブロックを num_hidden_layers 回繰り返す (L = num_hidden_layers)
+        for _ in range(num_hidden_layers):
             self.hidden_layers.append(CustomLinear(
                 int(m), int(m),
                 bias=hid_bias_flag,
@@ -266,7 +265,7 @@ class MLP(nn.Module):
         # --- 1. 入力層 ---
         # CustomLinear内でスケーリングが行われるため，ここでは単に呼び出すだけ
         z = self.input_layer(z)
-        z = self.activation(z)
+        # z = self.activation(z) 
         outputs['layer_1'] = z
 
         # --- 2. 隠れ層 ---
@@ -275,20 +274,26 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.hidden_layers): 
             identity = z 
 
+            z_act = self.activation(z)
+
             # 線形変換 (スケーリング込み)
-            z_pre_activation = layer(z)
+            branch = layer(z_act)
 
             # Skip Connection
             if self.use_skip_connections:
-                z_pre_activation = z_pre_activation + identity
+                z = identity + branch
+            else:
+                z = branch
 
-            # 活性化関数
-            z = self.activation(z_pre_activation)
+            # 活性化関数はここでは適用しない (次ループの先頭または出力層前で行う)
             outputs[f'layer_{i+2}'] = z
 
         # --- 3. 出力層 ---
+        # 最後に活性化関数を通してから分類器へ
+        z_final = self.activation(z)
+
         # CustomLinear内でスケーリング (W/sqrt_m など) が行われる
-        output_scalar = self.classifier(z).squeeze(-1)
+        output_scalar = self.classifier(z_final).squeeze(-1)
         outputs['logit'] = output_scalar
 
         return output_scalar, outputs

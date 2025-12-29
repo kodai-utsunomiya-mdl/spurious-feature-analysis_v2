@@ -290,7 +290,7 @@ hidden_dim: 4096
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 2000 # 10000
+epochs: 500 # 10000
 train_batch_size: 64  # ERMの場合の学習バッチサイズ (IW や DRO では無視する) # 4795
 eval_batch_size: 512  # 評価時のバッチサイズ # 5794
 optimizer: "Adam"     # "SGD" or "Adam"
