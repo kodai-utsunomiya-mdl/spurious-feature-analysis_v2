@@ -7,7 +7,8 @@ import numpy as np
 
 class CustomLinear(nn.Module):
     """
-    重みとバイアスを定義し，特定のmultiplierと初期化分散でParametrizationを行う線形層
+    重みとバイアスを定義し，特定のmultiplierと初期化分散でparametrizationを行う線形層．
+    TP4論文の "Table 9: muP Formulation in the Styleof [57]..." の形式に従う．
     """
     def __init__(self, in_features, out_features, bias=True, 
                  weight_mult=1.0, bias_mult=1.0, 
@@ -155,10 +156,23 @@ class MLP(nn.Module):
         #   - W mult: 1/sqrt(m)
         #   - W init: N(0, 1) -> std = 1.0
         self.hidden_layers = nn.ModuleList()
+
+        # --- Depth-muP Scaling (1/sqrt(L)) の計算 ---
+        # TP5論文の L は残差ブロックの数に相当．
+        # 本コードでは hidden_layers のループ回数が num_hidden_layers - 1 なので，これが L に相当．
+        residual_blocks_L = num_hidden_layers - 1
+        
+        depth_mult = 1.0
+        # muP かつ Skip Connection あり かつ L >= 1 の場合のみスケーリングを適用
+        if initialization_method == 'muP' and use_skip_connections and residual_blocks_L > 0:
+            depth_mult = 1.0 / np.sqrt(residual_blocks_L)
+            print(f"        - Depth-muP: Scaling residual branches by 1/sqrt({residual_blocks_L}) = {depth_mult:.4f}")
         
         if initialization_method == 'muP':
-            hid_w_mult = 1.0
-            hid_b_mult = sqrt_m
+            # depth_mult を乗算してブランチ全体をスケーリング
+            hid_w_mult = 1.0 * depth_mult
+            hid_b_mult = sqrt_m * depth_mult
+            
             hid_w_init_std = 1.0 / sqrt_m
             hid_b_init_std = 1.0 / sqrt_m
             hid_bias_flag = use_bias
