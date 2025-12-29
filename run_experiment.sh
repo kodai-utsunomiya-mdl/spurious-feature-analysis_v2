@@ -2,7 +2,7 @@
 
 # --- SGEスケジューラへの指示 (qrshの引数をここで指定) ---
 #$ -S /bin/bash
-#$ -jc gpu-container_g1_dev
+#$ -jc gtn-container_g1_dev
 #$ -ac d=nvcr-pytorch-2503
 
 # --- ジョブの管理 ---

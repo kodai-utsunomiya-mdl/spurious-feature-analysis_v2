@@ -400,7 +400,7 @@ def main(config_path='config.yaml'):
 
     # オプティマイザの作成
     if config['optimizer'] == 'Adam':
-        optimizer = optim.Adam(optimizer_params_list, lr=config['learning_rate'])
+        optimizer = optim.AdamW(optimizer_params_list, lr=config['learning_rate'])
     else:
         # SGD
         optimizer = optim.SGD(optimizer_params_list, lr=config['learning_rate'], momentum=config['momentum'])
@@ -598,9 +598,7 @@ def main(config_path='config.yaml'):
 
     plotting.plot_all_results(history_df, analysis_histories, all_target_layers, result_dir, config)
 
-    # ---------------------------------------------------------
     # 7. DFR (Deep Feature Reweighting) の実行 (オプション)
-    # ---------------------------------------------------------
     if config.get('use_dfr', False):
         try:
             if X_val_dfr is not None:
@@ -666,7 +664,7 @@ def main(config_path='config.yaml'):
 
                     wandb.log(dfr_log_metrics)
                     
-                # テキスト結果保存 (Baseline結果も含めて拡張)
+                # テキスト結果保存
                 with open(os.path.join(result_dir, 'dfr_results.txt'), 'w') as f:
                     f.write("DFR Evaluation Results (Same metrics as ERM)\n")
                     f.write("=========================================\n")
@@ -683,7 +681,6 @@ def main(config_path='config.yaml'):
                     f.write("[Baselines & Comparisons]\n")
                     
                     # baseline_results: {'erm': ..., 'reg_none': ..., 'reg_l1': ..., 'reg_l2': ...}
-                    # 順序を整えて出力
                     print_order = ['erm', 'reg_none', 'reg_l1', 'reg_l2']
                     for base_key in print_order:
                         if base_key not in baseline_results: continue

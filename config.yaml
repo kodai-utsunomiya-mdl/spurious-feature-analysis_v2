@@ -188,7 +188,7 @@
 # # DFR (Deep Feature Reweighting) 設定
 # # ---------------------------------
 # use_dfr: true # True にすると学習後に DFR を実行
-# dfr_loss_type: "logistic" # "logistic" or "mse"
+# dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1" or "l2", or "none"
 # dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
 # dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
@@ -219,25 +219,25 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_dfr"
+experiment_name: "wb_dfr_minibatch_logistic"
 dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "logistic"          # "logistic" or "mse"
-activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
+activation_function: "gelu"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
-use_skip_connections: false
+use_skip_connections: true
 use_bias: true               # バイアス項の有無
 use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
-use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
+use_grayscale: true          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 device: "cuda"                # "cuda" or "cpu"
 
 # ---------------------------------
 # データセット設定
 # ---------------------------------
-num_train_samples: 4795   # Waterbirdsの最大: 4795
-num_test_samples: 5794    # Waterbirdsの最大: 5794
+num_train_samples: 4795    # Waterbirdsの最大: 4795
+num_test_samples: 5794     # Waterbirdsの最大: 5794
 
 # --- 事前特徴抽出器の設定 ---
-use_feature_extractor: true
+use_feature_extractor: false
 
 # --- 特徴抽出器のモデル選択 ---
 # 'ResNet18', 'ResNet50', 'ViT_B_16'
@@ -284,17 +284,17 @@ test_attribute_marginal: 0.0    # E[A] (テストセット)
 # ---------------------------------
 # モデル設定
 # ---------------------------------
-num_hidden_layers: 1
+num_hidden_layers: 4
 hidden_dim: 4096
 
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 1 # 10000
-train_batch_size: 4795   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
-eval_batch_size: 5794    # 評価時のバッチサイズ
-optimizer: "SGD"    # "SGD" or "Adam"
-learning_rate: 0.1
+epochs: 2000 # 10000
+train_batch_size: 64  # ERMの場合の学習バッチサイズ (IW や DRO では無視する) # 4795
+eval_batch_size: 512  # 評価時のバッチサイズ # 5794
+optimizer: "Adam"     # "SGD" or "Adam"
+learning_rate: 0.01
 momentum: 0.0
 fix_final_layer: false  # trueにすると最終層の重みを固定
 
@@ -361,7 +361,7 @@ analysis_target: 'both'
 jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数
 # グループ勾配計算用サンプル数 (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
-show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
+show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
 
 # 可視化アルゴリズムの選択
 visualization_method: "umap"  # "umap" または "tsne" を指定
@@ -404,7 +404,7 @@ wandb:
 # ---------------------------------
 use_dfr: true # True にすると学習後に DFR を実行
 dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
-dfr_reg: "none"  # "l1", "l2", or "none"
+dfr_reg: "l1"  # "l1", "l2", or "none"
 dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
 dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
@@ -624,7 +624,7 @@ dfr_target_layer: "last_hidden"
 # # DFR (Deep Feature Reweighting) 設定
 # # ---------------------------------
 # use_dfr: true # True にすると学習後に DFR を実行
-# dfr_loss_type: "logistic" # "logistic" or "mse"
+# dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1", "l2", or "none"
 # dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
 # dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
