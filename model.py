@@ -8,7 +8,7 @@ import numpy as np
 class CustomLinear(nn.Module):
     """
     重みとバイアスを定義し，特定のmultiplierと初期化分散でparametrizationを行う線形層．
-    TP4論文の "Table 9: muP Formulation in the Styleof [57]..." の形式に従う．
+    TP4論文の "Table 9: muP Formulation in the Style of [57]..." の形式に従う．
     """
     def __init__(self, in_features, out_features, bias=True, 
                  weight_mult=1.0, bias_mult=1.0, 
