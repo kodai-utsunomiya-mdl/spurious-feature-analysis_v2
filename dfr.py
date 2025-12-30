@@ -416,6 +416,164 @@ def train_baseline_model(X, y, loss_type, reg_type, c_options, random_state=42):
     return coef, intercept, (best_c_val if reg_type != 'none' else None)
 
 
+def _reorder_metrics_for_spurious_task(metrics):
+    """
+    スプリアス属性を予測するタスク (Target=A, Attr=Y) において，
+    evaluate_model が返すグループ順序は 2*A + Y となるため，
+    Index 0: A=-1, Y=-1 -> Group 0 (Original)
+    Index 1: A=-1, Y=+1 -> Group 2 (Original)
+    Index 2: A=+1, Y=-1 -> Group 1 (Original)
+    Index 3: A=+1, Y=+1 -> Group 3 (Original)
+    となっている．
+    これを通常のグループ順序 (0, 1, 2, 3) に対応させるため，
+    Index 1 と Index 2 を入れ替える．
+    """
+    losses = metrics['group_losses']
+    accs = metrics['group_accs']
+    
+    if len(losses) == 4 and len(accs) == 4:
+        # Swap index 1 and 2
+        new_losses = [losses[0], losses[2], losses[1], losses[3]]
+        new_accs = [accs[0], accs[2], accs[1], accs[3]]
+        
+        metrics['group_losses'] = new_losses
+        metrics['group_accs'] = new_accs
+        
+    return metrics
+
+def compute_subspace_principal_angles(Z, y_discrete):
+    """
+    正準角 (Principal Angles) を計算する．
+    バイアス項 (アフィン変換) による分離可能性を考慮するため，
+    特徴行列 Z に定数項を追加し，中心化は行わない．
+    
+    Args:
+        Z (np.ndarray): 特徴行列 (N, D)
+        y_discrete (np.ndarray): 離散ターゲットラベル (N,)
+        
+    Returns:
+        singular_values (np.ndarray): 正準角の余弦を表す特異値の配列 (降順)
+    """
+    n_samples, n_features = Z.shape
+    tol = 1e-10 # 特異値のカットオフしきい値
+
+    Z_aug = np.hstack([Z, np.ones((n_samples, 1))])
+    
+    # ターゲットのOne-Hot行列を作成
+    # ターゲット空間にも定数ベクトルが含まれる (One-Hotの和は1) ため，
+    # バイアス項同士の相関 (1.0) が観測される
+    classes = np.unique(y_discrete)
+    n_classes = len(classes)
+    
+    Y_oh = np.zeros((n_samples, n_classes))
+    for i, c in enumerate(classes):
+        Y_oh[y_discrete == c, i] = 1.0
+        
+    # 特徴空間 Z_aug の基底抽出 (SVD)
+    try:
+        # full_matrices=False で (N, K) の U を取得
+        U_z, S_z, _ = np.linalg.svd(Z_aug, full_matrices=False)
+        rank_z = np.sum(S_z > tol)
+        Q_Z = U_z[:, :rank_z] # (N, rank_z)
+    except Exception as e:
+        print(f"  [Error] SVD of Z failed: {e}")
+        return np.array([0.0])
+
+    # ターゲット空間 Y の基底抽出 (SVD)
+    try:
+        U_y, S_y, _ = np.linalg.svd(Y_oh, full_matrices=False)
+        rank_y = np.sum(S_y > tol)
+        Q_Y = U_y[:, :rank_y] # (N, rank_y)
+    except Exception as e:
+        print(f"  [Error] SVD of Y failed: {e}")
+        return np.array([0.0])
+
+    print(f"  True Rank of Feature Space Z (Augmented): {rank_z}")
+    # 2クラス分類の場合，One-Hot表現のランクは2 (線形独立な [1,0] と [0,1])
+    print(f"  True Rank of Target Space (One-Hot): {rank_y} (Should be K)")
+
+    # 4. 正準角の計算 (SVD of Q_Z^T Q_Y)
+    if rank_z == 0 or rank_y == 0:
+        return np.array([0.0])
+
+    M = np.dot(Q_Z.T, Q_Y)
+    
+    try:
+        singular_values = np.linalg.svd(M, compute_uv=False)
+    except Exception as e:
+        print(f"  [Error] Final SVD failed: {e}")
+        return np.array([0.0])
+        
+    return singular_values
+
+def compute_feature_alignment(Z, y_discrete, a_discrete):
+    """
+    特徴空間 Z 内における、ラベル Y の予測成分と属性 A の予測成分の間の
+    幾何学的整合度 (Feature Alignment, cos gamma_2) を計算する．
+    
+    1. Z に定数項を追加してアフィン空間を構成．
+    2. Y, A を Z 空間に射影 (Projection)．
+    3. 射影された成分から定数項を除去 (Centering)．
+    4. 残差成分同士の正準角 (最大特異値) を計算．
+    """
+    n_samples = Z.shape[0]
+    tol = 1e-10
+    
+    # 1. Augment Z with constant term
+    Z_aug = np.hstack([Z, np.ones((n_samples, 1))])
+    
+    # Get orthonormal basis of Z_aug: Q_Z
+    try:
+        U_z, S_z, _ = np.linalg.svd(Z_aug, full_matrices=False)
+        rank_z = np.sum(S_z > tol)
+        Q_Z = U_z[:, :rank_z]
+    except Exception as e:
+        print(f"  [Error] SVD of Z failed in alignment: {e}")
+        return 0.0
+
+    # Prepare Targets (One-Hot)
+    classes_y = np.unique(y_discrete)
+    T_Y = np.zeros((n_samples, len(classes_y)))
+    for i, c in enumerate(classes_y):
+        T_Y[y_discrete == c, i] = 1.0
+        
+    classes_a = np.unique(a_discrete)
+    T_A = np.zeros((n_samples, len(classes_a)))
+    for i, c in enumerate(classes_a):
+        T_A[a_discrete == c, i] = 1.0
+        
+    # 2. Project Targets onto Z space
+    Y_proj = Q_Z @ (Q_Z.T @ T_Y)
+    A_proj = Q_Z @ (Q_Z.T @ T_A)
+    
+    # 3. Centering (Remove constant component)
+    Y_proj_cent = Y_proj - np.mean(Y_proj, axis=0, keepdims=True)
+    A_proj_cent = A_proj - np.mean(A_proj, axis=0, keepdims=True)
+    
+    # 4. Compute Principal Angles between Centered Projected Subspaces
+    try:
+        U_y, S_y, _ = np.linalg.svd(Y_proj_cent, full_matrices=False)
+        rank_y = np.sum(S_y > tol)
+        if rank_y == 0: return 0.0
+        Q_Y_hat = U_y[:, :rank_y]
+        
+        U_a, S_a, _ = np.linalg.svd(A_proj_cent, full_matrices=False)
+        rank_a = np.sum(S_a > tol)
+        if rank_a == 0: return 0.0
+        Q_A_hat = U_a[:, :rank_a]
+        
+        M = np.dot(Q_Y_hat.T, Q_A_hat)
+        sing_vals = np.linalg.svd(M, compute_uv=False)
+        
+        alignment_score = np.max(sing_vals)
+        
+    except Exception as e:
+        print(f"  [Error] Alignment calculation failed: {e}")
+        return 0.0
+        
+    return alignment_score
+
+
 def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, a_test, device, loss_function_name, X_val=None, y_val=None, a_val=None):
     """
     DFRの実行プロセス全体
@@ -465,13 +623,14 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     y_dfr_source = y_val.cpu().numpy()
     a_dfr_source = a_val.cpu().numpy()
 
-    # --- 2. DFR Tune & Train ---
+    # --- 2. DFR Tune & Train (Main Task: Predict Y) ---
+    print("\n--- DFR Main Task (Target: Y) ---")
     # Validationを分割してCを決める
     best_c = dfr_tune(X_dfr_source, y_dfr_source, a_dfr_source, scaler, config)
     # Validation全体を使って再学習
     avg_coef, avg_intercept = dfr_train(X_dfr_source, y_dfr_source, a_dfr_source, best_c, scaler, config)
     
-    # --- 3. DFR PyTorchモデル化 & 評価 ---
+    # --- 3. DFR PyTorchモデル化 & 評価 (Main Task) ---
     dfr_torch_model = DFRTorchModel(avg_coef, avg_intercept, scaler).to(device)
     
     print("\n--- DFR Evaluation (Using exact same metrics as ERM) ---")
@@ -512,9 +671,88 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
         print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
 
 
+    # --- Spurious Attribute Prediction Task (Target: A) ---
+    print("\n" + "-"*40)
+    print(" Spurious Attribute Prediction (Target: A) DFR")
+    print("-" * 40)
+    
+    # DFRのValidationソースにおけるターゲット(Y)と属性(A)を入れ替える
+    # Target = a_dfr_source, Attribute for grouping = y_dfr_source
+    y_dfr_spur_source = a_dfr_source
+    a_dfr_spur_source = y_dfr_source
+    
+    # Tune C for spurious task (using same config options)
+    print("  [Spurious DFR] Tuning C (predicting attribute A)...")
+    best_c_spur = dfr_tune(X_dfr_source, y_dfr_spur_source, a_dfr_spur_source, scaler, config)
+    
+    # Train for spurious task
+    print(f"  [Spurious DFR] Training with Best C: {best_c_spur}...")
+    avg_coef_spur, avg_intercept_spur = dfr_train(X_dfr_source, y_dfr_spur_source, a_dfr_spur_source, best_c_spur, scaler, config)
+    
+    # Create Spurious DFR Model
+    dfr_spur_model = DFRTorchModel(avg_coef_spur, avg_intercept_spur, scaler).to(device)
+    
+    print("\n--- Spurious DFR Evaluation (Predicting A) ---")
+    
+    dfr_spur_train_metrics = utils.evaluate_model(
+        dfr_spur_model, X_train_emb_tensor, a_train, y_train, 
+        device, loss_function_name, eval_bs
+    )
+    dfr_spur_train_metrics = _reorder_metrics_for_spurious_task(dfr_spur_train_metrics)
+
+    dfr_spur_test_metrics = utils.evaluate_model(
+        dfr_spur_model, X_test_emb_tensor, a_test, y_test, 
+        device, loss_function_name, eval_bs
+    )
+    dfr_spur_test_metrics = _reorder_metrics_for_spurious_task(dfr_spur_test_metrics)
+    
+    print(f"Spurious DFR Train | Loss: {dfr_spur_train_metrics['avg_loss']:.4f}, Worst Acc: {dfr_spur_train_metrics['worst_acc']:.4f}")
+    print(f"Spurious DFR Test  | Loss: {dfr_spur_test_metrics['avg_loss']:.4f}, Worst Acc: {dfr_spur_test_metrics['worst_acc']:.4f}")
+
+    print("Spurious DFR Test Group Details (Aligned to Standard Groups Y, A):")
+    for i, loss in enumerate(dfr_spur_test_metrics['group_losses']):
+        acc = dfr_spur_test_metrics['group_accs'][i]
+        print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
+
+
+    # --- Principal Angles Analysis ---
+    print("\n" + "-"*40)
+    print(" Analysis: Principal Angles (Subspace Geometry)")
+    print("-" * 40)
+    
+    # Validation Set Analysis
+    print(" [Validation Set] Computing Principal Angles...")
+    print("  ... for Label Space Y")
+    sing_vals_y = compute_subspace_principal_angles(X_dfr_source, y_dfr_source)
+    print(f"  Singular Values (Cosines) w.r.t Y: {sing_vals_y}")
+    
+    print("  ... for Spurious Space A")
+    sing_vals_a = compute_subspace_principal_angles(X_dfr_source, a_dfr_source)
+    print(f"  Singular Values (Cosines) w.r.t A: {sing_vals_a}")
+    
+    # Feature Alignment (Y vs A) in Validation Set
+    align_val = compute_feature_alignment(X_dfr_source, y_dfr_source, a_dfr_source)
+    print(f"  Feature Alignment (Y vs A) cos gamma_2: {align_val:.6f}")
+
+    # Test Set Analysis
+    print("\n [Test Set] Computing Principal Angles (Checking for saturation/generalization)...")
+    y_test_np = y_test.cpu().numpy()
+    a_test_np = a_test.cpu().numpy()
+
+    print("  ... for Label Space Y")
+    sing_vals_y_test = compute_subspace_principal_angles(test_embeddings, y_test_np)
+    print(f"  Singular Values (Cosines) w.r.t Y: {sing_vals_y_test}")
+    
+    print("  ... for Spurious Space A")
+    sing_vals_a_test = compute_subspace_principal_angles(test_embeddings, a_test_np)
+    print(f"  Singular Values (Cosines) w.r.t A: {sing_vals_a_test}")
+    
+    # Feature Alignment (Y vs A) in Test Set
+    align_test = compute_feature_alignment(test_embeddings, y_test_np, a_test_np)
+    print(f"  Feature Alignment (Y vs A) cos gamma_2: {align_test:.6f}")
+
+
     # --- 4. Baseline Regressions (ERM on Features) ---
-    # 学習データ全体(特徴量)を使って単純な回帰を行う
-    # 比較: No Reg, L1, L2
     print("\n--- Baseline Regressions on Training Features (Imbalanced) ---")
     
     X_train_np = train_embeddings
@@ -540,7 +778,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
         
         if best_c_base:
             print(f"  Best C: {best_c_base}")
-            
+
         # Baseline Model化
         base_torch_model = DFRTorchModel(coef, intercept, scaler).to(device)
         
@@ -557,4 +795,5 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
             acc = base_test_metrics['group_accs'][i]
             print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
             
-    return dfr_train_metrics, dfr_test_metrics, baseline_results
+    # 戻り値を拡張
+    return dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, align_val, align_test

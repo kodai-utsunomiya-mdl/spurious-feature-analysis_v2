@@ -5,6 +5,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+"""_muP (TP4 Table 9)_
+
+|  | Input weights & all biases | Output weights | Hidden weights |
+| --- | --- | --- | --- |
+| Init. Var. | 1/fan_out | 1/fan_in | 1/fan_in |
+| Multiplier | √fan_out | 1/√fan_in | 1 |
+| SGD LR | 1 | 1 | 1 |
+| Adam LR | 1/√fan_out | 1/√fan_in | 1/fan_in |
+
+"""
+
 class CustomLinear(nn.Module):
     """
     重みとバイアスを定義し，特定のmultiplierと初期化分散でparametrizationを行う線形層．
@@ -157,11 +168,11 @@ class MLP(nn.Module):
         #   - W init: N(0, 1) -> std = 1.0
         self.hidden_layers = nn.ModuleList()
 
-        # --- Depth-muP Scaling (1/sqrt(L)) の計算 ---
+        # --- Depth-muP Scaling の計算 ---
         residual_blocks_L = num_hidden_layers
         
         depth_mult = 1.0
-        # muP かつ Skip Connection あり かつ L >= 1 の場合のみスケーリングを適用
+        # muP かつ Skip Connection あり かつ residual_blocks_L >= 1 の場合のみスケーリングを適用
         if initialization_method == 'muP' and use_skip_connections and residual_blocks_L > 0:
             depth_mult = 1.0 / np.sqrt(residual_blocks_L)
             print(f"        - Depth-muP: Scaling residual branches by 1/sqrt({residual_blocks_L}) = {depth_mult:.4f}")
@@ -190,7 +201,7 @@ class MLP(nn.Module):
         else:
             print(f"        - Hidden Layers: W mult={hid_w_mult:.2e}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
 
-        # 残差ブロックを num_hidden_layers 回繰り返す (L = num_hidden_layers)
+        # 残差ブロックを num_hidden_layers 回繰り返す (residual_blocks_L = num_hidden_layers)
         for _ in range(num_hidden_layers):
             self.hidden_layers.append(CustomLinear(
                 int(m), int(m),
@@ -261,6 +272,7 @@ class MLP(nn.Module):
     def forward(self, x):
         outputs = {}
         z = x.view(x.shape[0], -1)
+        outputs['layer_0'] = z
 
         # --- 1. 入力層 ---
         # CustomLinear内でスケーリングが行われるため，ここでは単に呼び出すだけ

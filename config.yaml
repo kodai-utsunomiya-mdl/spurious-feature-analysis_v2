@@ -4,12 +4,12 @@
 # # ---------------------------------
 # # 実験の基本設定
 # # ---------------------------------
-# experiment_name: "cm_dfr"
+# experiment_name: "cm_dfr_1"
 # dataset_name: "ColoredMNIST"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 # loss_function: "logistic"          # "logistic" or "mse"
 # activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 # initialization_method: "muP"  # "muP" or "NTP"
-# use_skip_connections: false
+# use_skip_connections: true
 # use_bias: true               # バイアス項の有無
 # use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
 # use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
@@ -59,7 +59,7 @@
 
 
 # # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
-# train_correlation: 0.8
+# train_correlation: 1.0
 # train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
 # train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
 # test_correlation: 0.0
@@ -69,17 +69,17 @@
 # # ---------------------------------
 # # モデル設定
 # # ---------------------------------
-# num_hidden_layers: 1
+# num_hidden_layers: 5
 # hidden_dim: 4096
 
 # # --------------------------------
 # # 学習設定
 # # ---------------------------------
-# epochs: 1
-# train_batch_size: 10000   # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+# epochs: 30
+# train_batch_size: 64     # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
 # eval_batch_size:  8000   # 評価時のバッチサイズ
-# optimizer: "SGD"    # "SGD" or "Adam"
-# learning_rate: 0.1
+# optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
+# learning_rate: 0.01
 # momentum: 0.0
 # fix_final_layer: false  # trueにすると最終層の重みを固定
 
@@ -121,7 +121,7 @@
 # gap_dynamics_factors_analysis_epochs:
 # jacobian_norm_analysis_epochs:
 # static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-# umap_analysis_epochs: [0, 10, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+# umap_analysis_epochs: [0, 10, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
 
 # # 性能差ダイナミクス要因の分析設定
 # gap_dynamics_factors:
@@ -161,7 +161,7 @@
 # # 特異値解析の設定
 # analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -191,7 +191,7 @@
 # dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1" or "l2", or "none"
 # dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
-# dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+# dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # # --- DFR用 Validationデータ設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
@@ -219,15 +219,15 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_dfr_minibatch_logistic"
+experiment_name: "wb_dfr"
 dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "logistic"          # "logistic" or "mse"
-activation_function: "gelu"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
+activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: true
-use_bias: true               # バイアス項の有無
+use_bias: true                # バイアス項の有無
 use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
-use_grayscale: true          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
+use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 device: "cuda"                # "cuda" or "cpu"
 
 # ---------------------------------
@@ -237,7 +237,7 @@ num_train_samples: 4795    # Waterbirdsの最大: 4795
 num_test_samples: 5794     # Waterbirdsの最大: 5794
 
 # --- 事前特徴抽出器の設定 ---
-use_feature_extractor: false
+use_feature_extractor: true
 
 # --- 特徴抽出器のモデル選択 ---
 # 'ResNet18', 'ResNet50', 'ViT_B_16'
@@ -284,16 +284,16 @@ test_attribute_marginal: 0.0    # E[A] (テストセット)
 # ---------------------------------
 # モデル設定
 # ---------------------------------
-num_hidden_layers: 4
-hidden_dim: 4096
+num_hidden_layers: 5
+hidden_dim: 1024 # 1024
 
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 500 # 10000
-train_batch_size: 64  # ERMの場合の学習バッチサイズ (IW や DRO では無視する) # 4795
-eval_batch_size: 512  # 評価時のバッチサイズ # 5794
-optimizer: "Adam"     # "SGD" or "Adam"
+epochs: 20 # 10000
+train_batch_size: 64    # ERMの場合の学習バッチサイズ (IW や DRO では無視する) # 4795
+eval_batch_size: 5794   # 評価時のバッチサイズ # 5794
+optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
 learning_rate: 0.01
 momentum: 0.0
 fix_final_layer: false  # trueにすると最終層の重みを固定
@@ -336,7 +336,7 @@ regularization_decay_start_epoch: 300
 gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
 static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-umap_analysis_epochs: [0, 10, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+umap_analysis_epochs: [0, 10, 20, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
 
 # 性能差ダイナミクス要因の分析設定
 gap_dynamics_factors:
@@ -376,7 +376,7 @@ umap_min_dist: 0.1
 # 特異値解析の設定
 analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
 singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
+singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
 
 # t-SNEの設定
 tsne_perplexity: 30.0
@@ -406,7 +406,7 @@ use_dfr: true # True にすると学習後に DFR を実行
 dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 dfr_reg: "l1"  # "l1", "l2", or "none"
 dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
-dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # --- DFR用 Validationデータ設定 ---
 # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
@@ -417,7 +417,7 @@ dfr_val_samples_per_group: 133 # Waterbirdsの最大: 133
 
 # --- DFRを適用する層の指定 ---
 # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ論文の設定．
-# "layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
+# "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 dfr_target_layer: "last_hidden"
 
 
@@ -445,10 +445,10 @@ dfr_target_layer: "last_hidden"
 # loss_function: "logistic"          # "logistic" or "mse"
 # activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus'
 # initialization_method: "muP"  # "muP" or "NTP"
-# use_skip_connections: false
+# use_skip_connections: true
 # use_bias: true               # バイアス項の有無
 # use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
-# use_grayscale: true          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
+# use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 # device: "cuda"                # "cuda" or "cpu"
 
 # # ---------------------------------
@@ -505,17 +505,17 @@ dfr_target_layer: "last_hidden"
 # # ---------------------------------
 # # モデル設定
 # # ---------------------------------
-# num_hidden_layers: 1
+# num_hidden_layers: 5
 # hidden_dim: 4096
 
 # # --------------------------------
 # # 学習設定
 # # ---------------------------------
-# epochs: 1
-# train_batch_size: 10000  # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+# epochs: 30
+# train_batch_size: 64     # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
 # eval_batch_size: 9000    # 評価時のバッチサイズ
-# optimizer: "SGD"    # "SGD" or "Adam"
-# learning_rate: 0.1
+# optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
+# learning_rate: 0.01
 # momentum: 0.0
 # fix_final_layer: false  # trueにすると最終層の重みを固定
 
@@ -557,7 +557,7 @@ dfr_target_layer: "last_hidden"
 # gap_dynamics_factors_analysis_epochs:
 # jacobian_norm_analysis_epochs:
 # static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-# umap_analysis_epochs: [0, 10, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+# umap_analysis_epochs: [0, 10, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
 
 # # 性能差ダイナミクス要因の分析設定
 # gap_dynamics_factors:
@@ -597,7 +597,7 @@ dfr_target_layer: "last_hidden"
 # # 特異値解析の設定
 # analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数 (多すぎると計算コスト大)
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -627,7 +627,7 @@ dfr_target_layer: "last_hidden"
 # dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1", "l2", or "none"
 # dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
-# dfr_num_retrains: 10 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+# dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # # --- DFR用 Validationデータ設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)

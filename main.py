@@ -1,4 +1,4 @@
-# sp/main.py
+# sp_scr_v2/main.py
 
 import os
 import yaml
@@ -12,7 +12,6 @@ import pandas as pd
 import wandb
 from torchvision import transforms
 
-# スクリプトをインポート
 import data_loader
 import utils
 import model as model_module
@@ -603,8 +602,10 @@ def main(config_path='config.yaml'):
         try:
             if X_val_dfr is not None:
                 # すでにmain.pyで分割されたValidationセットを渡す
-                # 戻り値: dfr_train, dfr_test, baseline_results
-                dfr_train_metrics, dfr_test_metrics, baseline_results = dfr.run_dfr_procedure(
+                # 戻り値: dfr_train, dfr_test, baseline_results, spur_train, spur_test, sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, align_val, align_test
+                dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, \
+                sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, \
+                align_val, align_test = dfr.run_dfr_procedure(
                     config, model, 
                     X_train, y_train, a_train, 
                     X_test, y_test, a_test, 
@@ -617,7 +618,7 @@ def main(config_path='config.yaml'):
                 if config.get('wandb', {}).get('enable', False):
                     dfr_log_metrics = {}
                     
-                    # --- DFR Metrics ---
+                    # --- DFR Metrics (Main Task: Target Y) ---
                     dfr_log_metrics['dfr_train_avg_loss'] = dfr_train_metrics['avg_loss']
                     dfr_log_metrics['dfr_train_worst_loss'] = dfr_train_metrics['worst_loss']
                     dfr_log_metrics['dfr_train_avg_acc'] = dfr_train_metrics['avg_acc']
@@ -633,8 +634,19 @@ def main(config_path='config.yaml'):
                         dfr_log_metrics[f'dfr_train_group_{i}_acc'] = dfr_train_metrics['group_accs'][i]
                         dfr_log_metrics[f'dfr_test_group_{i}_loss'] = dfr_test_metrics['group_losses'][i]
                         dfr_log_metrics[f'dfr_test_group_{i}_acc'] = dfr_test_metrics['group_accs'][i]
+
+                    # --- DFR Metrics (Spurious Task: Target A) ---
+                    dfr_log_metrics['dfr_spur_train_avg_loss'] = dfr_spur_train_metrics['avg_loss']
+                    dfr_log_metrics['dfr_spur_train_worst_loss'] = dfr_spur_train_metrics['worst_loss']
+                    dfr_log_metrics['dfr_spur_train_avg_acc'] = dfr_spur_train_metrics['avg_acc']
+                    dfr_log_metrics['dfr_spur_train_worst_acc'] = dfr_spur_train_metrics['worst_acc']
                     
-                    # Gap Metrics
+                    dfr_log_metrics['dfr_spur_test_avg_loss'] = dfr_spur_test_metrics['avg_loss']
+                    dfr_log_metrics['dfr_spur_test_worst_loss'] = dfr_spur_test_metrics['worst_loss']
+                    dfr_log_metrics['dfr_spur_test_avg_acc'] = dfr_spur_test_metrics['avg_acc']
+                    dfr_log_metrics['dfr_spur_test_worst_acc'] = dfr_spur_test_metrics['worst_acc']
+                    
+                    # Gap Metrics (Main Task)
                     if not np.isnan(dfr_train_metrics['group_losses'][1]) and not np.isnan(dfr_train_metrics['group_losses'][0]):
                         dfr_log_metrics['dfr_train_loss_gap_y_neg1'] = dfr_train_metrics['group_losses'][1] - dfr_train_metrics['group_losses'][0]
                     if not np.isnan(dfr_train_metrics['group_losses'][2]) and not np.isnan(dfr_train_metrics['group_losses'][3]):
@@ -650,6 +662,28 @@ def main(config_path='config.yaml'):
                         if 'E[f(x)]' in k or 'Std[f(x)]' in k: dfr_log_metrics[f'dfr_train_{k}'] = v
                     for k, v in dfr_test_metrics.items():
                         if 'E[f(x)]' in k or 'Std[f(x)]' in k: dfr_log_metrics[f'dfr_test_{k}'] = v
+
+                    # --- Analysis Metrics (Principal Angles) - Validation ---
+                    if len(sing_vals_y) > 0:
+                        dfr_log_metrics['dfr_val_principal_angles_Y_max'] = np.max(sing_vals_y)
+                        dfr_log_metrics['dfr_val_principal_angles_Y_mean'] = np.mean(sing_vals_y)
+                    
+                    if len(sing_vals_a) > 0:
+                        dfr_log_metrics['dfr_val_principal_angles_A_max'] = np.max(sing_vals_a)
+                        dfr_log_metrics['dfr_val_principal_angles_A_mean'] = np.mean(sing_vals_a)
+                        
+                    dfr_log_metrics['dfr_val_feature_alignment_Y_vs_A'] = align_val
+
+                    # --- Analysis Metrics (Principal Angles) - Test ---
+                    if len(sing_vals_y_test) > 0:
+                        dfr_log_metrics['dfr_test_principal_angles_Y_max'] = np.max(sing_vals_y_test)
+                        dfr_log_metrics['dfr_test_principal_angles_Y_mean'] = np.mean(sing_vals_y_test)
+                    
+                    if len(sing_vals_a_test) > 0:
+                        dfr_log_metrics['dfr_test_principal_angles_A_max'] = np.max(sing_vals_a_test)
+                        dfr_log_metrics['dfr_test_principal_angles_A_mean'] = np.mean(sing_vals_a_test)
+                        
+                    dfr_log_metrics['dfr_test_feature_alignment_Y_vs_A'] = align_test
 
                     # --- Baseline Metrics (Baseline regressions) ---
                     for base_name, base_metrics in baseline_results.items():
@@ -668,7 +702,7 @@ def main(config_path='config.yaml'):
                 with open(os.path.join(result_dir, 'dfr_results.txt'), 'w') as f:
                     f.write("DFR Evaluation Results (Same metrics as ERM)\n")
                     f.write("=========================================\n")
-                    f.write(f"[DFR Model]\n")
+                    f.write(f"[DFR Model - Main Task (Predict Y)]\n")
                     f.write(f"Train Avg Loss: {dfr_train_metrics['avg_loss']:.4f}\n")
                     f.write(f"Train Worst Acc: {dfr_train_metrics['worst_acc']:.4f}\n")
                     f.write(f"Test Avg Loss: {dfr_test_metrics['avg_loss']:.4f}\n")
@@ -678,7 +712,29 @@ def main(config_path='config.yaml'):
                         f.write(f"  Group {i}: Loss={dfr_test_metrics['group_losses'][i]:.4f}, Acc={dfr_test_metrics['group_accs'][i]:.4f}\n")
                     
                     f.write("\n=========================================\n")
-                    f.write("[Baselines & Comparisons]\n")
+                    f.write(f"[DFR Model - Spurious Task (Predict A)]\n")
+                    f.write(f"Train Avg Loss: {dfr_spur_train_metrics['avg_loss']:.4f}\n")
+                    f.write(f"Train Worst Acc: {dfr_spur_train_metrics['worst_acc']:.4f}\n")
+                    f.write(f"Test Avg Loss: {dfr_spur_test_metrics['avg_loss']:.4f}\n")
+                    f.write(f"Test Worst Acc: {dfr_spur_test_metrics['worst_acc']:.4f}\n")
+                    f.write("\nTest Group Details (Aligned to Standard Groups Y, A):\n")
+                    for i in range(4):
+                         f.write(f"  Group {i}: Loss={dfr_spur_test_metrics['group_losses'][i]:.4f}, Acc={dfr_spur_test_metrics['group_accs'][i]:.4f}\n")
+                    
+                    f.write("\n=========================================\n")
+                    f.write(f"[Analysis: Principal Angles (Subspace Geometry)]\n")
+                    f.write(f"--- On Validation Set (Small N) ---\n")
+                    f.write(f"Singular Values w.r.t Y (Label): {sing_vals_y}\n")
+                    f.write(f"Singular Values w.r.t A (Spurious): {sing_vals_a}\n")
+                    f.write(f"Feature Alignment (Y vs A) cos gamma_2: {align_val:.6f}\n")
+                    
+                    f.write(f"\n--- On Test Set (Large N) ---\n")
+                    f.write(f"Singular Values w.r.t Y (Label): {sing_vals_y_test}\n")
+                    f.write(f"Singular Values w.r.t A (Spurious): {sing_vals_a_test}\n")
+                    f.write(f"Feature Alignment (Y vs A) cos gamma_2: {align_test:.6f}\n")
+
+                    f.write("\n=========================================\n")
+                    f.write("[Baselines & Comparisons (Main Task)]\n")
                     
                     # baseline_results: {'erm': ..., 'reg_none': ..., 'reg_l1': ..., 'reg_l2': ...}
                     print_order = ['erm', 'reg_none', 'reg_l1', 'reg_l2']

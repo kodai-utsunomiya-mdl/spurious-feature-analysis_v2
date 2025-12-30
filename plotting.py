@@ -386,15 +386,31 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
         layer_names = list(train_layers.keys())
     elif test_layers:
         layer_names = list(test_layers.keys())
-        
+
+    keys_to_remove = []
+    if any(name.startswith('Input') for name in layer_names):
+        for name in layer_names:
+            if name.lower() in ['layer_0', 'layer 0']:
+                keys_to_remove.append(name)
+    
+    for k in keys_to_remove:
+        if k in layer_names:
+            layer_names.remove(k)
+
     # キーの順序を保証: 'Input', 'Layer 1'..., 'Output'
     def sort_key(name):
         if name.startswith('Input'): return -1
         if name.startswith('Output'): return 9999
-        try:
-            return int(name.split(' ')[1])
-        except:
-            return 0
+        name_clean = name.replace('_', ' ').lower()
+        parts = name_clean.split(' ')
+        if len(parts) > 1:
+            try:
+                # 最後の部分を数値として解釈 ('layer' '1' -> 1)
+                return int(parts[-1])
+            except:
+                pass
+        return 0
+    
     layer_names = sorted(layer_names, key=sort_key)
     
     n_cols = len(layer_names)
@@ -503,13 +519,29 @@ def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_
     # 共通の層名ソートロジック
     def get_sorted_layer_names(sv_dict):
         names = list(sv_dict.keys())
+        
+        # --- [修正] layer_0 (Input相当) の重複除外処理 ---
+        keys_to_remove = []
+        if any(name.startswith('Input') for name in names):
+            for name in names:
+                if name.lower() in ['layer_0', 'layer 0']:
+                    keys_to_remove.append(name)
+        for k in keys_to_remove:
+            if k in names:
+                names.remove(k)
+
         def sort_key(name):
             if name.startswith('Input'): return -1
             if name.startswith('Output'): return 9999
-            try:
-                return int(name.split(' ')[1])
-            except:
-                return 0
+            # 'Layer 1' or 'layer_1' 対応
+            name_clean = name.replace('_', ' ').lower()
+            parts = name_clean.split(' ')
+            if len(parts) > 1:
+                try:
+                    return int(parts[-1])
+                except:
+                    pass
+            return 0
         return sorted(names, key=sort_key)
 
     # ランク: 1st, 2nd, 5th, 10th, 20th, 50th, 100th, 200th, 500th
