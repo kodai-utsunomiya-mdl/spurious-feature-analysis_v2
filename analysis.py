@@ -5,40 +5,31 @@ from itertools import combinations
 import torch
 import plotting
 
-# ==============================================================================
 # ヤコビアン計算のヘルパー関数
-# ==============================================================================
 def get_model_jacobian(model, X_subset, device):
     """
     モデルのヤコビアンの期待値 (勾配の平均) を計算
     """
     model.eval()
-    model.zero_grad() # 念のためリセット
+    model.zero_grad()
     X_subset = X_subset.to(device)
     
-    # 1. バッチ全体の出力を計算
+    # バッチ全体の出力を計算
     scores, _ = model(X_subset) # (N,)
     
-    # 2. 出力の平均をとる (効率化)
+    # 出力の平均をとる
     # 線形性により E[∇f(x)] = ∇E[f(x)] なので，先に平均をとってから微分しても結果は同じ
     mean_output = scores.mean()
     
-    # 3. 平均出力に対する勾配を計算 (標準的なBackprop)
+    # 平均出力に対する勾配を計算 (標準的なBackprop)
     # requires_grad=True のパラメータのみ対象
     params = [p for p in model.parameters() if p.requires_grad]
-    
-    # create_graph=False (推論/分析用なので計算グラフは保持しなくてよい)
     grads = torch.autograd.grad(mean_output, params, create_graph=False)
-    
-    # 4. Numpy配列のリストに変換
     avg_jacobian_list = [g.cpu().detach().numpy() for g in grads]
 
     return avg_jacobian_list
 
-
-# ==============================================================================
-# グループ勾配の計算
-# ==============================================================================
+# グループごとの勾配の計算
 def calculate_group_gradients(model, X_data, y_data, a_data, device, loss_function, dataset_type, num_samples):
     """
     グループごとの勾配を計算 (パラメータごとのリストとして) 
@@ -83,10 +74,8 @@ def calculate_group_gradients(model, X_data, y_data, a_data, device, loss_functi
 
     return group_grads_list
 
-# ==============================================================================
-# 勾配基底ベクトルの分析
-# ==============================================================================
 
+# 基底ベクトルの分析
 def _standard_inner_product(v1_list, v2_list):
     """
     2つのパラメータごと勾配リストの標準ユークリッド内積 <v1, v2> を計算
@@ -168,9 +157,7 @@ def analyze_gradient_basis(group_grads_list, dataset_type):
     results['vectors'] = basis_vectors_list
     return results
 
-# ==============================================================================
 # 性能差のダイナミクスの要因の分析
-# ==============================================================================
 def analyze_gap_dynamics_factors(group_grads_list, basis_vectors_list, config, y_data, a_data, dataset_type):
     """
     性能差のダイナミクスの3つの要因の大きさを計算する
@@ -227,9 +214,7 @@ def analyze_gap_dynamics_factors(group_grads_list, basis_vectors_list, config, y
     return results
 
 
-# ==============================================================================
-# グループヤコビアンの計算
-# ==============================================================================
+# グループごとのヤコビアンの計算
 def calculate_group_jacobians(model, X_data, y_data, a_data, device, num_samples, dataset_type):
     """
     グループごとのヤコビアンの期待値 (平均埋め込み m_g(t)) を計算
@@ -255,9 +240,8 @@ def calculate_group_jacobians(model, X_data, y_data, a_data, device, num_samples
     
     return group_jacobians_list
 
-# ==============================================================================
+
 # ヤコビアンノルムの分析
-# ==============================================================================
 def analyze_jacobian_norms(group_jacobians_list, dataset_type):
     """
     ヤコビアンノルムと幾何学的中心ベクトルの分析
@@ -334,12 +318,11 @@ def analyze_jacobian_norms(group_jacobians_list, dataset_type):
             
     return jacobian_results
 
-# ==============================================================================
-# 静的・動的分解の分析
-# ==============================================================================
+
+# 静的・動的な分解の分析
 def analyze_static_dynamic_decomposition(group_grads_list, group_jacobians_list, config, y_data, a_data, dataset_type):
     """
-    同じラベルを持つグループ間の性能差ダイナミクスの静的・動的分解 (項A, B, C) を計算
+    同じラベルを持つグループ間の性能差のダイナミクスの静的・動的な分解 (項A, B, C) を計算
     """
     print(f"\nAnalyzing STATIC/DYNAMIC DECOMPOSITION on {dataset_type} data...")
     group_pairs_config = config.get('static_dynamic_decomposition', {}).get('group_pairs', [])
@@ -402,9 +385,8 @@ def analyze_static_dynamic_decomposition(group_grads_list, group_jacobians_list,
     
     return results
 
-# ==============================================================================
-# モデル出力期待値の分析
-# ==============================================================================
+
+# モデル出力の期待値の分析
 def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batch_size=None):
     """
     各グループにおけるモデル出力の期待値 E[f(x)] および標準偏差 Std[f(x)] を計算する
@@ -424,9 +406,7 @@ def analyze_model_output_expectation(model, X_data, y_data, a_data, device, batc
     return results
 
 
-# ==============================================================================
-# 可視化 (UMAP / t-SNE) / 特異値解析用 特徴量抽出
-# ==============================================================================
+# 可視化 (UMAP / t-SNE) / 特異値の解析用 特徴量抽出
 def get_layer_representations(model, X_data, y_data, a_data, device, max_samples=2000):
     """
     各層の表現を取得する
@@ -508,10 +488,7 @@ def run_singular_value_analysis(config, model, X_train, y_train, a_train, X_test
 
     plotting.plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_dir)
 
-
-# ==============================================================================
 # 全ての分析を統括するラッパー関数
-# ==============================================================================
 def run_all_analyses(config, epoch, layers, model, train_outputs, test_outputs, X_train, y_train, a_train, X_test, y_test, a_test, histories, history): 
     result_dir, analysis_target = config.get('result_dir', '.'), config['analysis_target']
     run_grad_basis, run_gap_factors, run_jacobian_norm, run_static_dynamic, run_output_exp = config.get('analyze_gradient_basis', False), config.get('analyze_gap_dynamics_factors', False), config.get('analyze_jacobian_norm', False), config.get('analyze_static_dynamic_decomposition', False), config.get('analyze_model_output_expectation', False)

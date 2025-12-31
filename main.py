@@ -26,14 +26,9 @@ def main(config_path='config.yaml'):
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
 
-    # --- debias_method の読み込み ---
     debias_method = config.get('debias_method', 'None')
     loss_function_name = config['loss_function']
-    
-    # eval_batch_size を config から読み込む
-    # 見つからない場合は None を設定 (utils.py 側でフルバッチとして扱われる)
     eval_batch_size = config.get('eval_batch_size', None)
-
 
     # wandbの初期化
     if config.get('wandb', {}).get('enable', False):
@@ -45,17 +40,14 @@ def main(config_path='config.yaml'):
         )
         print("wandb is enabled and initialized.")
 
-    # 2. 結果保存ディレクトリの作成
+    # 2. 結果を保存するディレクトリの作成
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     result_dir = os.path.join('results', f"{config['experiment_name']}_{timestamp}")
     os.makedirs(result_dir, exist_ok=True)
     shutil.copy(config_path, os.path.join(result_dir, 'config_used.yaml'))
     print(f"Results will be saved to: {result_dir}")
-    
-    # configにresult_dirを追加 (analysisなどで使用するため)
     config['result_dir'] = result_dir
 
-    # デバイス設定
     device = config['device'] if torch.cuda.is_available() and config['device'] == 'cuda' else "cpu"
     print(f"Using device: {device}")
 
@@ -67,21 +59,17 @@ def main(config_path='config.yaml'):
     os.makedirs(CACHE_DIR, exist_ok=True)
     print(f"Using feature cache directory: {CACHE_DIR}")
 
-    # --- 特徴抽出器のセットアップ (configに応じて) ---
+    # 特徴抽出器のセットアップ
     feat_extractor_model = None
     input_dim_for_mlp = None 
-    
-    # configから設定を読み込む
     use_feature_extractor = config.get('use_feature_extractor', False)
-    
-    # モデル名を取得
     model_name = config.get('feature_extractor_model_name', 'ResNet18') 
 
     # キャッシュパスの変数を初期化
     cache_path_train_X = None
     cache_path_train_y = None
     cache_path_train_a = None
-    cache_path_val_X = None # Val用キャッシュ
+    cache_path_val_X = None
     cache_path_val_y = None
     cache_path_val_a = None
     cache_path_test_X = None
@@ -90,14 +78,13 @@ def main(config_path='config.yaml'):
 
 
     if use_feature_extractor:
-        # セットアップ関数を呼び出し
         feat_extractor_model, input_dim_for_mlp = feature_extractor.setup_feature_extractor(config)
-        
-        # キャッシュパスの生成 (feature_extractor.py から呼び出し)
+
+        # キャッシュパスの生成
         base_name_train = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'train')
         base_name_test = feature_extractor.get_cache_filename(config['dataset_name'], model_name, config, 'test')
         
-        # Validation用キャッシュ名 (trainベースだが "_val" を付与して区別)
+        # Validation用のキャッシュ名
         dfr_n = config.get('dfr_val_samples_per_group', 100)
         base_name_val = base_name_train.replace('.pt', f'_dfr_val_n{dfr_n}.pt')
         
@@ -146,7 +133,7 @@ def main(config_path='config.yaml'):
         # --- キャッシュが存在する場合 ---
         try:
             print(f"Loading features and labels from cache...")
-            X_train = torch.load(cache_path_train_X, map_location=torch.device('cpu')) # CPUにロード
+            X_train = torch.load(cache_path_train_X, map_location=torch.device('cpu'))
             y_train = torch.load(cache_path_train_y, map_location=torch.device('cpu'))
             a_train = torch.load(cache_path_train_a, map_location=torch.device('cpu'))
             
@@ -185,7 +172,7 @@ def main(config_path='config.yaml'):
 
         elif config['dataset_name'] == 'Dominoes':
             image_size = 224
-            # Dominoesは内部で224x224にリサイズされる
+            # Dominoesは内部で224x224にリサイズ
             X_train, y_train, a_train, X_val_dfr, y_val_dfr, a_val_dfr, X_test, y_test, a_test = data_loader.get_dominoes_all(config)
 
         elif config['dataset_name'] == 'WaterBirds':
@@ -210,7 +197,7 @@ def main(config_path='config.yaml'):
         else:
             raise ValueError(f"Unknown dataset: {config['dataset_name']}")
 
-        # --- Grayscale Conversion ---
+        # Grayscale Conversion
         # Feature Extractorを使わない場合 (=Raw Pixel MLP) の次元削減用
         if config.get('use_grayscale', False):
             print("Converting images to Grayscale (1 channel)...")
@@ -232,7 +219,6 @@ def main(config_path='config.yaml'):
                  raise RuntimeError("Feature extractor was not set up, but cache was not found.")
             
             print("--- Starting Feature Extraction (Train) ---")
-            # feature_extractor.py から呼び出し
             X_train_features = feature_extractor.extract_features(feat_extractor_model, X_train, device)
             X_train = X_train_features
             
@@ -283,10 +269,10 @@ def main(config_path='config.yaml'):
         
     X_test = utils.l2_normalize_images(X_test)
 
-    # --- グループのリストを定義 ---
+    # グループのリストを定義
     group_keys = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)]
 
-    # --- バイアス除去手法のための設定 ---
+    # デバイアス手法のための設定
     static_weights = None
     dro_q_weights = None
     
@@ -295,7 +281,7 @@ def main(config_path='config.yaml'):
         print(f"  [Warning] 'train_batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
         print("  Removing both marginal bias (Term II) and spurious correlation (Term III).")
 
-        # 理論に基づき，重みを一律 1/4 (0.25) に設定 (v_inv の勾配流)
+        # 重みを 1/4 (0.25) に設定 (v_inv の勾配流)
         static_weights = {g: 0.25 for g in group_keys}
 
         print("  Using static weights for uniform target distribution (w_g = 0.25 for all):")
@@ -308,7 +294,7 @@ def main(config_path='config.yaml'):
         print("\n--- Group DRO Enabled ---")
         print(f"  [Warning] 'train_batch_size' config is ignored. Using full-batch (per-group) gradient calculation.")
         
-        # 動的重み q を一様分布で初期化
+        # 動的な重み q を一様分布で初期化
         dro_q_weights = torch.ones(len(group_keys), device=device) / len(group_keys)
         
         print(f"  Using dynamic weights 'q' initialized to: {dro_q_weights.cpu().numpy()}")
@@ -317,7 +303,7 @@ def main(config_path='config.yaml'):
         train_loader = None
 
     elif debias_method == 'None':
-        # 通常のERM学習
+        # 通常のERM
         print(f"\n--- ERM (Debias Method: None) Enabled ---")
         train_batch_size_erm = config.get('train_batch_size', 50000) 
         print(f"  Using train_batch_size: {train_batch_size_erm}")
@@ -338,7 +324,7 @@ def main(config_path='config.yaml'):
     if use_feature_extractor:
         # input_dim_for_mlp の扱い
         # input_dim_for_mlp が設定されていない (キャッシュロードなどで) 場合，
-        # ロードした X_train の次元から復元する
+        # ロードした X_train の次元から復元
         if input_dim_for_mlp is None:
              if X_train.dim() == 2: # (B, D)
                  input_dim_for_mlp = X_train.shape[1]
@@ -364,11 +350,8 @@ def main(config_path='config.yaml'):
             raise ValueError(f"Unexpected X_train dimensions: {X_train.shape}")
             
         print(f"Using RAW input_dim ({config['dataset_name']}): {input_dim}")
-    
-    # use_bias を config から読み込む
+
     use_bias = config.get('use_bias', False)
-    
-    # ゼロ初期化設定を読み込む
     use_zero_bias_init = config.get('use_zero_bias_initialization', False)
     
     print(f"Using bias in MLP: {use_bias}")
@@ -382,8 +365,7 @@ def main(config_path='config.yaml'):
         use_bias=use_bias,
         use_zero_bias_init=use_zero_bias_init
     ).to(device)
-    
-    # fix_final_layer の処理
+
     if config.get('fix_final_layer', False):
         print("Freezing final layer weights (fix_final_layer=True)...")
         model.classifier.weight.requires_grad = False
@@ -391,7 +373,6 @@ def main(config_path='config.yaml'):
             model.classifier.bias.requires_grad = False
 
     # オプティマイザに渡すパラメータを設定
-    # パラメータグループの取得 (muP + Adam対応)
     optimizer_params_list = model.get_optimizer_parameters(
         optimizer_name=config['optimizer'],
         global_lr=config['learning_rate']
@@ -410,7 +391,6 @@ def main(config_path='config.yaml'):
 
     all_target_layers = [f'layer_{i+1}' for i in range(config['num_hidden_layers'])]
 
-    # 変数の初期化
     history = {k: [] for k in ['train_avg_loss', 'test_avg_loss', 'train_worst_loss', 'test_worst_loss',
                                'train_avg_acc', 'test_avg_acc', 'train_worst_acc', 'test_worst_acc',
                                'train_group_losses', 'test_group_losses', 'train_group_accs', 'test_group_accs']}
@@ -447,7 +427,6 @@ def main(config_path='config.yaml'):
         run_static_dynamic = should_run_init('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
         run_output_exp = should_run_init('analyze_model_output_expectation', 'model_output_expectation_analysis_epochs')
         run_umap = should_run_init('analyze_umap_representation', 'umap_analysis_epochs')
-        # 特異値解析は UMAP と同じ epoch リストを使用
         run_svd = should_run_init('analyze_singular_values', 'umap_analysis_epochs')
 
         # 実行用のConfigを作成
@@ -475,7 +454,7 @@ def main(config_path='config.yaml'):
     
     for epoch in range(config['epochs']):
         
-        # --- 学習ステップ ---
+        # 学習ステップ
         updated_dro_weights = trainer.train_epoch(
             config, model, optimizer, debias_method, 
             X_train, y_train, a_train, train_loader, 
@@ -486,7 +465,7 @@ def main(config_path='config.yaml'):
         if updated_dro_weights is not None:
             dro_q_weights = updated_dro_weights 
 
-        # --- 評価 ---
+        # 評価
         train_metrics = utils.evaluate_model(model, X_train, y_train, a_train, device, loss_function_name, eval_batch_size)
         test_metrics = utils.evaluate_model(model, X_test, y_test, a_test, device, loss_function_name, eval_batch_size)
         
@@ -532,7 +511,7 @@ def main(config_path='config.yaml'):
 
             wandb.log(log_metrics)
 
-        # --- チェックポイント分析 ---
+        # チェックポイント分析
         current_epoch = epoch + 1
 
         def should_run(analysis_name, epoch_list_name):
@@ -548,9 +527,7 @@ def main(config_path='config.yaml'):
         run_jacobian_norm = should_run('analyze_jacobian_norm', 'jacobian_norm_analysis_epochs')
         run_static_dynamic = should_run('analyze_static_dynamic_decomposition', 'static_dynamic_decomposition_analysis_epochs')
         run_output_exp = should_run('analyze_model_output_expectation', 'model_output_expectation_analysis_epochs')
-        # UMAP分析の実行判定
         run_umap = should_run('analyze_umap_representation', 'umap_analysis_epochs')
-        # 特異値解析 (UMAPと同じタイミング)
         run_svd = should_run('analyze_singular_values', 'umap_analysis_epochs')
 
         run_any_analysis = run_grad_basis or run_gap_factors or run_jacobian_norm or run_static_dynamic or run_output_exp or run_umap or run_svd
@@ -597,12 +574,10 @@ def main(config_path='config.yaml'):
 
     plotting.plot_all_results(history_df, analysis_histories, all_target_layers, result_dir, config)
 
-    # 7. DFR (Deep Feature Reweighting) の実行 (オプション)
+    # 7. DFR (Deep Feature Reweighting) の実行
     if config.get('use_dfr', False):
         try:
             if X_val_dfr is not None:
-                # すでにmain.pyで分割されたValidationセットを渡す
-                # 戻り値: dfr_train, dfr_test, baseline_results, spur_train, spur_test, sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, align_val, align_test
                 dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, \
                 sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, \
                 align_val, align_test = dfr.run_dfr_procedure(
@@ -614,7 +589,7 @@ def main(config_path='config.yaml'):
                     X_val=X_val_dfr, y_val=y_val_dfr, a_val=a_val_dfr
                 )
             
-                # WandBログの記録 (ERMの指標と完全に対応するものをプレフィックス付きで記録)
+                # WandBログの記録 (ERMの指標と対応するものをプレフィックス付きで記録)
                 if config.get('wandb', {}).get('enable', False):
                     dfr_log_metrics = {}
                     

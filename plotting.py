@@ -4,13 +4,11 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-# UMAP/TSNEの実装を切り替えてインポート
 # 優先順位: 1. cuml (GPU), 2. umap-learn / sklearn (CPU), 3. None
 try:
     from cuml.manifold import UMAP as UMAP_GPU
     from cuml.manifold import TSNE as TSNE_GPU
     HAS_GPU_LIBS = True
-    # エイリアスとして保持（analysis.py等での判定用）
     UMAP = UMAP_GPU
 except ImportError:
     HAS_GPU_LIBS = False
@@ -23,7 +21,6 @@ except ImportError:
         TSNE_CPU = None
         UMAP = None
 
-# 可視化ライブラリがいずれか存在するかどうかのフラグ
 HAS_ANY_VIS_LIB = UMAP is not None
 
 ot = None 
@@ -34,10 +31,8 @@ plt.rc("axes", facecolor='white', titlesize=16)
 plt.rc("mathtext", fontset='cm')
 plt.rc('text', usetex=False)
 
-# ==============================================================================
-# 共通のヘルパー関数
-# ==============================================================================
 
+# 共通のヘルパー関数
 def _save_and_close(fig, save_dir, filename):
     """
     MatplotlibのFigureを指定されたディレクトリにファイルとして保存し，メモリを解放
@@ -49,10 +44,6 @@ def _save_and_close(fig, save_dir, filename):
     fig.savefig(save_path, bbox_inches='tight')
     plt.close(fig)
     print(f"Plot saved to {save_path}")
-
-# ==============================================================================
-# 学習履歴のプロット関数
-# ==============================================================================
 
 def plot_training_history(history_df, save_dir):
     """学習過程の各種メトリクスをプロットし，2つの画像ファイルとして保存"""
@@ -110,7 +101,7 @@ def plot_training_history(history_df, save_dir):
     _save_and_close(fig2, save_dir, "training_history_groups.png")
 
 def plot_misclassification_rates(final_metrics_series, dataset_name, save_dir):
-    """最終テストセットのグループ別誤分類率をプロット"""
+    """最終テストセットのグループ別の誤分類率をプロット"""
     print("\nPlotting misclassification rates...")
     if 'WaterBirds' in dataset_name:
         group_labels = ['Landbird\non Land\n($y=-1, a=-1$)', 'Landbird\non Water\n($y=-1, a=+1$)', 
@@ -132,11 +123,7 @@ def plot_misclassification_rates(final_metrics_series, dataset_name, save_dir):
     fig.tight_layout()
     _save_and_close(fig, save_dir, "misclassification_rates.png")
 
-# ==============================================================================
-# 分析結果の時系列プロット関数
-# ==============================================================================
-
-# ヤコビアンノルムのプロット関数
+# ヤコビアンノルムのプロット
 def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
     if not history_train and not history_test: return
     epochs = sorted(history_train.keys() if history_train else history_test.keys())
@@ -182,13 +169,11 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
     paper_norm_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_norm_sq_m_')])
     paper_dot_keys = sorted([k for k in first_epoch_data.keys() if k.startswith('paper_dot_m_A_m_Y')])
 
-
-    # キーが存在する場合のみプロット
     if delta_norm_keys or delta_dot_keys or delta_cosine_keys or paper_norm_keys or paper_dot_keys:
         
         num_plots = 3 # Norms, Dots/PaperTerms, Cosines
         fig3, axes3 = plt.subplots(num_plots, 1, figsize=(14, 7 * num_plots))
-        if num_plots == 1: axes3 = [axes3] # Make iterable
+        if num_plots == 1: axes3 = [axes3]
         fig3.suptitle('Evolution of Jacobian Geometric Center Metrics (S/L)', fontsize=16)
 
         plot_idx = 0
@@ -242,12 +227,10 @@ def plot_jacobian_norm_evolution(history_train, history_test, save_dir):
         fig3.tight_layout(rect=[0, 0, 0.85, 0.96])
         _save_and_close(fig3, save_dir, 'jacobian_geometric_centers.png')
 
-# ==============================================================================
-# 静的・動的分解 (項A, B, C) のプロット関数
-# ==============================================================================
+# 静的・動的な分解 (項A, B, C) のプロット
 def plot_static_dynamic_decomposition(history_train, history_test, config, save_dir):
     """
-    同じラベルを持つグループ間の性能差ダイナミクスの静的・動的分解 (項A, B, C) の
+    同じラベルを持つグループ間の性能差のダイナミクスの静的・動的な分解 (項A, B, C) の
     時間発展をプロットする
     """
     if not history_train and not history_test: return
@@ -300,11 +283,9 @@ def plot_static_dynamic_decomposition(history_train, history_test, config, save_
     _save_and_close(fig, save_dir, 'static_dynamic_decomposition.png')
 
 
-# ==============================================================================
-# モデル出力期待値のプロット関数
-# ==============================================================================
+# モデル出力の期待値のプロット
 def plot_model_output_expectations(history_train, history_test, save_dir):
-    """各グループのモデル出力期待値 E[f(x)] および標準偏差 Std[f(x)] の時間変化をプロット"""
+    """各グループのモデル出力の期待値 E[f(x)] および標準偏差 Std[f(x)] の時間変化をプロット"""
     if not history_train and not history_test: return
     
     epochs = sorted(history_train.keys() if history_train else history_test.keys())
@@ -317,7 +298,7 @@ def plot_model_output_expectations(history_train, history_test, save_dir):
         '(1,-1)': 'orange', '(1,1)': 'red'
     }
 
-    # --- 1. 期待値 (Mean) のプロット ---
+    # --- 1. 期待値のプロット ---
     keys_mean = sorted([k for k in first_epoch_data.keys() if k.startswith('E[f(x)]')])
     
     if keys_mean:
@@ -342,7 +323,7 @@ def plot_model_output_expectations(history_train, history_test, save_dir):
         fig1.tight_layout(rect=[0, 0, 0.85, 0.96])
         _save_and_close(fig1, save_dir, 'model_output_expectations.png')
 
-    # --- 2. 標準偏差 (Std) のプロット ---
+    # --- 2. 標準偏差のプロット ---
     keys_std = sorted([k for k in first_epoch_data.keys() if k.startswith('Std[f(x)]')])
     
     if keys_std:
@@ -367,9 +348,7 @@ def plot_model_output_expectations(history_train, history_test, save_dir):
         fig2.tight_layout(rect=[0, 0, 0.85, 0.96])
         _save_and_close(fig2, save_dir, 'model_output_stds.png')
 
-# ==============================================================================
-# UMAP/t-SNE 可視化プロット関数
-# ==============================================================================
+# UMAP/t-SNE による可視化
 def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, epoch, save_dir, config):
     """
     指定された層の表現をUMAPまたはt-SNEで可視化し，2行xN列のグリッドで保存する
@@ -380,7 +359,6 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
         print(f"Warning: Neither UMAP nor TSNE libs found. Skipping {method} plot.")
         return
 
-    # 層の名前リストを取得 (Train/Testどちらか片方でもあればOK)
     layer_names = []
     if train_layers:
         layer_names = list(train_layers.keys())
@@ -431,7 +409,7 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
         return
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
-    # 1行または1列の場合，axesは1次元配列になる
+    # 1行または1列の場合，axesは1次元配列
     if n_rows == 1 and n_cols == 1:
         axes = np.array([[axes]])
     elif n_rows == 1:
@@ -440,8 +418,7 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
         axes = axes.reshape(-1, 1)
 
     fig.suptitle(f'{method.upper()} Visualization of Layer Representations at Epoch {epoch}', fontsize=20)
-    
-    # グループ定義と色/マーカー
+
     groups = [
         {'label': r'$y=-1, a=-1$', 'color': 'cyan',   'marker': 'o', 'cond': lambda y, a: (y == -1) & (a == -1)},
         {'label': r'$y=-1, a=+1$', 'color': 'blue',   'marker': 'x', 'cond': lambda y, a: (y == -1) & (a == 1)},
@@ -454,7 +431,7 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
             ax = axes[r_idx, c_idx]
             data = layers_data[layer_name]
             
-            # --- 次元削減の実行 ---
+            # --- 次元削減 ---
             if data.shape[1] > 2:
                 if method == 'tsne':
                     perplexity = config.get('tsne_perplexity', 30.0)
@@ -494,14 +471,11 @@ def plot_umap_grid(train_layers, train_y, train_a, test_layers, test_y, test_a, 
     fig.tight_layout(rect=[0, 0, 0.9, 0.95])
     _save_and_close(fig, save_dir, f"{method}_layers_epoch_{epoch}.png")
 
-# ==============================================================================
-# 特異値スペクトルのプロット関数
-# ==============================================================================
+# 特異値スペクトルのプロット
 def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_dir):
     """
     層ごとの特異値スペクトルをプロットする (Train/Testをまとめて処理)
     """
-    # プロット対象をリスト化
     datasets = []
     if train_sv_dict is not None:
         datasets.append(('Train', train_sv_dict))
@@ -516,11 +490,9 @@ def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_
     fig, axes = plt.subplots(n_rows, 1, figsize=(10, 6 * n_rows), squeeze=False)
     fig.suptitle(f'Layer-wise Singular Value Spectra (Epoch {epoch})', fontsize=16)
 
-    # 共通の層名ソートロジック
     def get_sorted_layer_names(sv_dict):
         names = list(sv_dict.keys())
-        
-        # --- [修正] layer_0 (Input相当) の重複除外処理 ---
+
         keys_to_remove = []
         if any(name.startswith('Input') for name in names):
             for name in names:
@@ -564,8 +536,7 @@ def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_
                     vals.append(s_vals[rank-1]) # 0-indexed
                 else:
                     vals.append(np.nan)
-                    
-            # プロット (Log scale)
+
             if any(not np.isnan(v) for v in vals):
                 ax.plot(x_indices, vals, marker='o', label=f'Rank {rank}', color=colors[i], alpha=0.8)
 
@@ -585,10 +556,7 @@ def plot_singular_values_across_layers(train_sv_dict, test_sv_dict, epoch, save_
     _save_and_close(fig, save_dir, f"singular_values_epoch_{epoch}.png")
 
 
-# ==============================================================================
 # 全てのプロットを統括するラッパー関数
-# ==============================================================================
-
 def plot_all_results(history_df, analysis_histories, layers, save_dir, config):
     """全てのプロット関数を呼び出し，結果を保存"""
     print("\n--- Generating and saving all plots ---")
@@ -603,7 +571,7 @@ def plot_all_results(history_df, analysis_histories, layers, save_dir, config):
             save_dir
         )
 
-    # 静的・動的分解のプロット
+    # 静的・動的な分解のプロット
     if config.get('analyze_static_dynamic_decomposition', False):
         plot_static_dynamic_decomposition(
             analysis_histories.get('static_dynamic_decomp_train', {}),
@@ -612,7 +580,7 @@ def plot_all_results(history_df, analysis_histories, layers, save_dir, config):
             save_dir
         )
 
-    # モデル出力期待値のプロット
+    # モデル出力の期待値のプロット
     if config.get('analyze_model_output_expectation', False):
         plot_model_output_expectations(
             analysis_histories.get('model_output_exp_train', {}),

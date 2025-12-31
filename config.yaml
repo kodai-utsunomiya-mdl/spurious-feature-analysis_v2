@@ -11,7 +11,7 @@
 # initialization_method: "muP"  # "muP" or "NTP"
 # use_skip_connections: true
 # use_bias: true               # バイアス項の有無
-# use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
+# use_zero_bias_initialization: true # バイアスを0で初期化
 # use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 # device: "cuda"                # "cuda" or "cpu"
 
@@ -30,18 +30,18 @@
 # #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
 # feature_extractor_model_name: "DINOv2_ViT_G_14" 
 
-# # --- ResNet系 中間層特徴マップ設定 ---
+# # --- ResNet系 中間層の特徴マップの設定 ---
 # # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
 # # 'avgpool': avgpool 後のベクトル (デフォルト)
 # # 'layer3': ResNetの layer3 出力
 # # 'layer4': ResNetの layer4 出力
 # feature_extractor_resnet_intermediate_layer: "avgpool" 
 
-# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合の適応的空間プーリングサイズ
+# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合のAdaptive Poolingサイズ
 # # 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
 # feature_extractor_resnet_pooling_output_size: 2 
 
-# # --- ViT/DINOv2系 中間層設定 ---
+# # --- ViT/DINOv2系 中間層の設定 ---
 # # [ViT/DINOv2系でのみ有効]
 # # 抽出するブロックのインデックス (0 から N-1). 
 # # -1 は最後のブロック, -2 は最後から2番目, ...
@@ -60,8 +60,8 @@
 
 # # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
 # train_correlation: 1.0
-# train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
-# train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
+# train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
+# train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
 # test_correlation: 0.0
 # test_label_marginal: 0.0        # E[Y] (テストセット)
 # test_attribute_marginal: 0.0    # E[A] (テストセット)
@@ -76,33 +76,31 @@
 # # 学習設定
 # # ---------------------------------
 # epochs: 30
-# train_batch_size: 64     # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+# train_batch_size: 64     # ERMの場合のバッチサイズ (IW や DRO では無視する)
 # eval_batch_size:  8000   # 評価時のバッチサイズ
 # optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
 # learning_rate: 0.01
 # momentum: 0.0
-# fix_final_layer: false  # trueにすると最終層の重みを固定
+# fix_final_layer: false  # 最終層の重みを固定
 
-# # --- バイアス除去手法の選択 ---
+# # --- debias手法の選択 ---
 # debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # # --- Group DRO Settings ---
 # dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
 
-# # --- カーネル正則化設定 ---
-# # スプリアス相関緩和のためのカーネル値 (内積) 制御
-# use_kernel_regularization: false # true で有効化
+# # --- カーネルの正則化の設定 ---
+# use_kernel_regularization: false
 
-# # 3項それぞれの正則化強度を個別に設定 (カーネル値)
+# # 3項それぞれの正則化の強度を個別に設定 (カーネル値)
 # kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
 # kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
 # kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
 
-# # --- コサイン類似度正則化 ---
-# # スプリアス相関緩和のためのコサイン類似度制御 (カーネル正則化と併用可能)
-# use_cosine_regularization: false # true で有効化
+# # --- コサイン類似度の正則化 ---
+# use_cosine_regularization: false
 
-# # 3項それぞれの正則化強度を個別に設定 (コサイン類似度)
+# # 3項それぞれの正則化の強度を個別に設定 (コサイン類似度)
 # cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
 # cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
 # cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
@@ -115,15 +113,15 @@
 
 
 # # ------------------------------------------
-# # 解析・可視化設定
+# # 解析・可視化の設定
 # # ------------------------------------------
-# # 各種分析の実行エポック設定 (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
+# # 各種分析の実行エポック (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
 # gap_dynamics_factors_analysis_epochs:
 # jacobian_norm_analysis_epochs:
-# static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-# umap_analysis_epochs: [0, 10, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+# static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
+# umap_analysis_epochs: [0, 10, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
 
-# # 性能差ダイナミクス要因の分析設定
+# # 性能差のダイナミクスの要因の分析の設定
 # gap_dynamics_factors:
 #   # 分析対象とするグループペア [g1, g2] のリスト
 #   group_pairs:
@@ -131,7 +129,7 @@
 #     - [[1, -1], [-1, -1]]
 #     - [[ 1,  -1], [ 1, 1]]
 
-# # 静的・動的分解の分析設定
+# # 静的・動的な分解の分析の設定
 # static_dynamic_decomposition:
 #   # 分析対象とするグループペア [g_min, g_maj] のリスト
 #   # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
@@ -141,10 +139,10 @@
 #     # y=+1 のペア (min=(1,-1), maj=(1,1))
 #     - [[1, -1], [1, 1]]
 
-# # 解析対象データセット ('train', 'test', 'both')
+# # 解析対象のデータセット ('train', 'test', 'both')
 # analysis_target: 'both'
-# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数
-# # グループ勾配計算用サンプル数 (null の場合は全サンプル使用)
+# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
+# # グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
 # gradient_gram_num_samples: null 
 # show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
 
@@ -152,16 +150,16 @@
 # visualization_method: "umap"  # "umap" または "tsne" を指定
 
 # # UMAPの設定
-# analyze_umap_representation: true # Trueで可視化を有効化
+# analyze_umap_representation: true
 # umap_analysis_target: 'both' # 'train', 'test', 'both'
-# umap_num_samples: 50000 # 計算に使用する最大サンプル数
+# umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
 
 # # 特異値解析の設定
-# analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+# analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -177,7 +175,7 @@
 # analyze_model_output_expectation: true
 
 # # ---------------------------------
-# # wandb設定
+# # wandbの設定
 # # ---------------------------------
 # wandb:
 #   enable: true
@@ -190,17 +188,17 @@
 # use_dfr: true # True にすると学習後に DFR を実行
 # dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1" or "l2", or "none"
-# dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
+# dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
 # dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
-# # --- DFR用 Validationデータ設定 ---
+# # --- DFR用 Validationデータの設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
 # # WaterBirdsの場合は公式Validation Setから，
 # # Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリングされる
 # dfr_val_samples_per_group: 200 # Waterbirdsの最大: 133
 
 # # --- DFRを適用する層の指定 ---
-# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ論文の設定．
+# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
 # # "layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"
 
@@ -226,7 +224,7 @@ activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 
 initialization_method: "muP"  # "muP" or "NTP"
 use_skip_connections: true
 use_bias: true                # バイアス項の有無
-use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
+use_zero_bias_initialization: true # バイアスを0で初期化
 use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 device: "cuda"                # "cuda" or "cpu"
 
@@ -245,18 +243,18 @@ use_feature_extractor: true
 #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
 feature_extractor_model_name: "DINOv2_ViT_G_14" # "DINOv2_ViT_G_14" 
 
-# --- ResNet系 中間層特徴マップ設定 ---
+# --- ResNet系 中間層の特徴マップの設定 ---
 # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
 # 'avgpool': avgpool 後のベクトル (デフォルト)
 # 'layer3': ResNetの layer3 出力
 # 'layer4': ResNetの layer4 出力
 feature_extractor_resnet_intermediate_layer: "avgpool" 
 
-# 'resnet_intermediate_layer' が 'avgpool' 以外の場合の適応的空間プーリングサイズ
+# 'resnet_intermediate_layer' が 'avgpool' 以外の場合のAdaptive Poolingサイズ
 # 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
 feature_extractor_resnet_pooling_output_size: 2 
 
-# --- ViT/DINOv2系 中間層設定 ---
+# --- ViT/DINOv2系 中間層の設定 ---
 # [ViT/DINOv2系でのみ有効]
 # 抽出するブロックのインデックス (0 から N-1). 
 # -1 は最後のブロック, -2 は最後から2番目, ...
@@ -275,8 +273,8 @@ feature_extractor_vit_aggregation_mode: "mean_pool_all"
 
 # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
 train_correlation: 0.8
-train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
-train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
+train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
+train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
 test_correlation: 0.0
 test_label_marginal: 0.0        # E[Y] (テストセット)
 test_attribute_marginal: 0.0    # E[A] (テストセット)
@@ -291,33 +289,31 @@ hidden_dim: 1024 # 1024
 # 学習設定
 # ---------------------------------
 epochs: 20 # 10000
-train_batch_size: 64    # ERMの場合の学習バッチサイズ (IW や DRO では無視する) # 4795
+train_batch_size: 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
 eval_batch_size: 5794   # 評価時のバッチサイズ # 5794
 optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
 learning_rate: 0.01
 momentum: 0.0
-fix_final_layer: false  # trueにすると最終層の重みを固定
+fix_final_layer: false  # 最終層の重みを固定
 
-# --- バイアス除去手法の選択 ---
+# --- debias手法の選択 ---
 debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # --- Group DRO Settings ---
 dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
 
-# --- カーネル正則化設定 ---
-# スプリアス相関緩和のためのカーネル値 (内積) 制御
-use_kernel_regularization: false # true で有効化
+# --- カーネルの正則化の設定 ---
+use_kernel_regularization: false
 
-# 3項それぞれの正則化強度を個別に設定 (カーネル値)
+# 3項それぞれの正則化の強度を個別に設定 (カーネル値)
 kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
 kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
 kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
 
-# --- コサイン類似度正則化 ---
-# スプリアス相関緩和のためのコサイン類似度制御 (カーネル正則化と併用可能)
-use_cosine_regularization: false # true で有効化
+# --- コサイン類似度の正則化 ---
+use_cosine_regularization: false
 
-# 3項それぞれの正則化強度を個別に設定 (コサイン類似度)
+# 3項それぞれの正則化の強度を個別に設定 (コサイン類似度)
 cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
 cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
 cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
@@ -330,15 +326,15 @@ regularization_decay_start_epoch: 300
 
 
 # ------------------------------------------
-# 解析・可視化設定
+# 解析・可視化の設定
 # ------------------------------------------
-# 各種分析の実行エポック設定 (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
+# 各種分析の実行エポック (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
 gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
-static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-umap_analysis_epochs: [0, 10, 20, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
+umap_analysis_epochs: [0, 10, 20, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
 
-# 性能差ダイナミクス要因の分析設定
+# 性能差のダイナミクスの要因の分析の設定
 gap_dynamics_factors:
   # 分析対象とするグループペア [g1, g2] のリスト
   group_pairs:
@@ -346,7 +342,7 @@ gap_dynamics_factors:
     - [[1, -1], [-1, -1]]
     - [[ 1,  -1], [ 1, 1]]
 
-# 静的・動的分解の分析設定
+# 静的・動的な分解の分析の設定
 static_dynamic_decomposition:
   # 分析対象とするグループペア [g_min, g_maj] のリスト
   # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
@@ -356,10 +352,10 @@ static_dynamic_decomposition:
     # y=+1 のペア (min=(1,-1), maj=(1,1))
     - [[1, -1], [1, 1]]
 
-# 解析対象データセット ('train', 'test', 'both')
+# 解析対象のデータセット ('train', 'test', 'both')
 analysis_target: 'both'
-jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数
-# グループ勾配計算用サンプル数 (null の場合は全サンプル使用)
+jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
+# グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
 show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
 
@@ -367,16 +363,16 @@ show_and_save_samples: false  # 実行時にデータセットのサンプル画
 visualization_method: "umap"  # "umap" または "tsne" を指定
 
 # UMAPの設定
-analyze_umap_representation: true # Trueで可視化を有効化
+analyze_umap_representation: true
 umap_analysis_target: 'both' # 'train', 'test', 'both'
-umap_num_samples: 50000 # 計算に使用する最大サンプル数
+umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
 umap_n_neighbors: 15
 umap_min_dist: 0.1
 
 # 特異値解析の設定
-analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
+singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
 
 # t-SNEの設定
 tsne_perplexity: 30.0
@@ -392,7 +388,7 @@ analyze_static_dynamic_decomposition: false
 analyze_model_output_expectation: true
 
 # ---------------------------------
-# wandb設定
+# wandbの設定
 # ---------------------------------
 wandb:
   enable: true
@@ -405,18 +401,17 @@ wandb:
 use_dfr: true # True にすると学習後に DFR を実行
 dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 dfr_reg: "l1"  # "l1", "l2", or "none"
-dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
+dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
 dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
-# --- DFR用 Validationデータ設定 ---
+# --- DFR用 Validationデータの設定 ---
 # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
 # WaterBirdsの場合は公式Validation Setから，
 # Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリング
 dfr_val_samples_per_group: 133 # Waterbirdsの最大: 133
 
-
 # --- DFRを適用する層の指定 ---
-# "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ論文の設定．
+# "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
 # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 dfr_target_layer: "last_hidden"
 
@@ -447,7 +442,7 @@ dfr_target_layer: "last_hidden"
 # initialization_method: "muP"  # "muP" or "NTP"
 # use_skip_connections: true
 # use_bias: true               # バイアス項の有無
-# use_zero_bias_initialization: true # Trueならバイアスを0で初期化，Falseなら各手法の分散でランダム初期化
+# use_zero_bias_initialization: true # バイアスを0で初期化
 # use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 # device: "cuda"                # "cuda" or "cpu"
 
@@ -466,18 +461,18 @@ dfr_target_layer: "last_hidden"
 # #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
 # feature_extractor_model_name: "DINOv2_ViT_G_14" 
 
-# # --- ResNet系 中間層特徴マップ設定 ---
+# # --- ResNet系 中間層の特徴マップの設定 ---
 # # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
 # # 'avgpool': avgpool 後のベクトル (デフォルト)
 # # 'layer3': ResNetの layer3 出力
 # # 'layer4': ResNetの layer4 出力
 # feature_extractor_resnet_intermediate_layer: "avgpool" 
 
-# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合の適応的空間プーリングサイズ
+# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合のAdaptive Poolingサイズ
 # # 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
 # feature_extractor_resnet_pooling_output_size: 2 
 
-# # --- ViT/DINOv2系 中間層設定 ---
+# # --- ViT/DINOv2系 中間層の設定 ---
 # # [ViT/DINOv2系でのみ有効]
 # # 抽出するブロックのインデックス (0 から N-1). 
 # # -1 は最後のブロック, -2 は最後から2番目, ...
@@ -496,8 +491,8 @@ dfr_target_layer: "last_hidden"
 
 # # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
 # train_correlation: 0.8
-# train_label_marginal: 0.0       # E[Y] (ラベル不均衡度: -1.0 ~ 1.0)
-# train_attribute_marginal: 0.0   # E[A] (属性不均衡度: -1.0 ~ 1.0)
+# train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
+# train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
 # test_correlation: 0.0
 # test_label_marginal: 0.0        # E[Y] (テストセット)
 # test_attribute_marginal: 0.0    # E[A] (テストセット)
@@ -512,33 +507,31 @@ dfr_target_layer: "last_hidden"
 # # 学習設定
 # # ---------------------------------
 # epochs: 30
-# train_batch_size: 64     # ERMの場合の学習バッチサイズ (IW や DRO では無視する)
+# train_batch_size: 64     # ERMの場合のバッチサイズ (IW や DRO では無視する)
 # eval_batch_size: 9000    # 評価時のバッチサイズ
 # optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
 # learning_rate: 0.01
 # momentum: 0.0
-# fix_final_layer: false  # trueにすると最終層の重みを固定
+# fix_final_layer: false  # 最終層の重みを固定
 
-# # --- バイアス除去手法の選択 ---
+# # --- debias手法の選択 ---
 # debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # # --- Group DRO Settings ---
 # dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
 
-# # --- カーネル正則化設定 ---
-# # スプリアス相関緩和のためのカーネル値 (内積) 制御
-# use_kernel_regularization: false # true で有効化
+# # --- カーネルの正則化の設定 ---
+# use_kernel_regularization: false
 
-# # 3項それぞれの正則化強度を個別に設定 (カーネル値)
+# # 3項それぞれの正則化の強度を個別に設定 (カーネル値)
 # kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
 # kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
 # kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
 
-# # --- コサイン類似度正則化 ---
-# # スプリアス相関緩和のためのコサイン類似度制御 (カーネル正則化と併用可能)
-# use_cosine_regularization: false # true で有効化
+# # --- コサイン類似度の正則化 ---
+# use_cosine_regularization: false
 
-# # 3項それぞれの正則化強度を個別に設定 (コサイン類似度)
+# # 3項それぞれの正則化の強度を個別に設定 (コサイン類似度)
 # cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
 # cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
 # cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
@@ -551,15 +544,15 @@ dfr_target_layer: "last_hidden"
 
 
 # # ------------------------------------------
-# # 解析・可視化設定
+# # 解析・可視化の設定
 # # ------------------------------------------
-# # 各種分析の実行エポック設定 (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
+# # 各種分析の実行エポック (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
 # gap_dynamics_factors_analysis_epochs:
 # jacobian_norm_analysis_epochs:
-# static_dynamic_decomposition_analysis_epochs: # 静的/動的分解の分析エポック
-# umap_analysis_epochs: [0, 10, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNE可視化を行うエポックリスト
+# static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
+# umap_analysis_epochs: [0, 10, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
 
-# # 性能差ダイナミクス要因の分析設定
+# # 性能差のダイナミクスの要因の分析の設定
 # gap_dynamics_factors:
 #   # 分析対象とするグループペア [g1, g2] のリスト
 #   group_pairs:
@@ -567,7 +560,7 @@ dfr_target_layer: "last_hidden"
 #     - [[1, -1], [-1, -1]]
 #     - [[ 1,  -1], [ 1, 1]]
 
-# # 静的・動的分解の分析設定
+# # 静的・動的な分解の分析の設定
 # static_dynamic_decomposition:
 #   # 分析対象とするグループペア [g_min, g_maj] のリスト
 #   # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
@@ -577,10 +570,10 @@ dfr_target_layer: "last_hidden"
 #     # y=+1 のペア (min=(1,-1), maj=(1,1))
 #     - [[1, -1], [1, 1]]
 
-# # 解析対象データセット ('train', 'test', 'both')
+# # 解析対象のデータセット ('train', 'test', 'both')
 # analysis_target: 'both'
-# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプル数
-# # グループ勾配計算用サンプル数 (null の場合は全サンプル使用)
+# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
+# # グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
 # gradient_gram_num_samples: null 
 # show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
 
@@ -588,16 +581,16 @@ dfr_target_layer: "last_hidden"
 # visualization_method: "umap"  # "umap" または "tsne" を指定
 
 # # UMAPの設定
-# analyze_umap_representation: true # Trueで可視化を有効化
+# analyze_umap_representation: true
 # umap_analysis_target: 'both' # 'train', 'test', 'both'
-# umap_num_samples: 50000 # 計算に使用する最大サンプル数
+# umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
 
 # # 特異値解析の設定
-# analyze_singular_values: true # Trueで有効化 (umap_analysis_epochs のタイミングで実行)
+# analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプル数
+# singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -613,7 +606,7 @@ dfr_target_layer: "last_hidden"
 # analyze_model_output_expectation: true
 
 # # ---------------------------------
-# # wandb設定
+# # wandbの設定
 # # ---------------------------------
 # wandb:
 #   enable: true
@@ -626,16 +619,16 @@ dfr_target_layer: "last_hidden"
 # use_dfr: true # True にすると学習後に DFR を実行
 # dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1", "l2", or "none"
-# dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化強度の逆数
+# dfr_c_options: [1.0, 0.7, 0.3, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
 # dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
-# # --- DFR用 Validationデータ設定 ---
+# # --- DFR用 Validationデータの設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
 # # WaterBirdsの場合は公式Validation Setから，
 # # Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリングされる
 # dfr_val_samples_per_group: 200 # Waterbirdsの最大: 133
 
 # # --- DFRを適用する層の指定 ---
-# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ論文の設定．
+# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
 # # "layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"

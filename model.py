@@ -261,9 +261,9 @@ class MLP(nn.Module):
             self.activation = nn.Tanh()
         elif activation_fn == 'identity':
             self.activation = nn.Identity()
-        elif activation_fn == 'silu':  # SiLU (Sigmoid Linear Unit)
+        elif activation_fn == 'silu':
             self.activation = nn.SiLU()
-        elif activation_fn == 'softplus':  # Smoothed ReLU (Softplus)
+        elif activation_fn == 'softplus':  # Smoothed ReLU
             self.activation = nn.Softplus()
         else:
             raise ValueError(f"Unknown activation function: {activation_fn}")
@@ -281,7 +281,7 @@ class MLP(nn.Module):
         outputs['layer_1'] = z
 
         # --- 2. 隠れ層 ---
-        # 隠れ層リストは input_layer の次から始まるため，インデックスに注意
+        # 隠れ層のリストは input_layer の次から始まるため，インデックスに注意
         # loop index i=0 -> layer name "layer_2"
         for i, layer in enumerate(self.hidden_layers): 
             identity = z 
@@ -313,13 +313,12 @@ class MLP(nn.Module):
     def get_optimizer_parameters(self, optimizer_name, global_lr):
         """
         オプティマイザに渡すパラメータグループを作成する．
-        muPかつAdamの場合のみ層ごとの学習率スケーリングを行う (SGDの場合はすべての層で幅mに対してオーダー1)．
+        muPかつAdamの場合のみ層ごとの学習率スケーリングを行う．
         """
         if self.initialization_method == 'NTP' or optimizer_name == 'SGD':
-            # スケーリングなし: すべてのパラメータに対してglobal_lrを使用
             return [{'params': self.parameters(), 'lr': global_lr}]
         
-        # --- muP + Adam の場合: 層ごとのLR設定 ---
+        # --- muP + Adam の場合 ---
         groups = []
         m = self.hidden_dim
         sqrt_m = np.sqrt(m)

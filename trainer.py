@@ -18,7 +18,7 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
     Returns:
         total_reg_loss: 正則化損失の合計 (scalar tensor)
     """
-    # 1. 各グループの平均勾配 (Mean Gradient) を計算
+    # 1. 各グループの勾配の平均を計算
     # m_g = E[nabla f(x)]
     group_mean_grads = {}
     
@@ -44,7 +44,7 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
         scores, _ = model(X_sub)
         mean_output = scores.mean()
         
-        # 平均出力に対するパラメータ勾配を取得
+        # 出力の平均に対するパラメータ勾配を取得
         # create_graph=True にして，この勾配自体をさらに微分可能にする (正則化のため)
         grads = torch.autograd.grad(mean_output, model.parameters(), create_graph=True)
         
@@ -73,7 +73,7 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
             # カーネル値 (内積)
             dot_val = torch.dot(vec_u, vec_v)
             
-            # --- カーネル正則化 (Kernel Regularization) ---
+            # --- カーネルの正則化 ---
             if kernel_reg_weights is not None:
                 # 条件1: 属性が同じでラベルが異なる (Minimize)
                 if (y_u != y_v) and (a_u == a_v):
@@ -85,7 +85,7 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
                 elif (y_u == y_v) and (a_u != a_v):
                     total_reg_loss = total_reg_loss - (kernel_reg_weights.get('diffA_sameY', 0.0) * dot_val)
 
-            # --- コサイン類似度正則化 (Cosine Similarity Regularization) ---
+            # --- コサイン類似度の正則化 ---
             if cosine_reg_weights is not None:
                 # ノルム計算
                 norm_u = torch.norm(vec_u)
@@ -94,13 +94,13 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
                 # コサイン類似度
                 cosine_val = dot_val / (norm_u * norm_v + epsilon)
                 
-                # 条件1: 属性が同じでラベルが異なる (Minimize -> 逆向き化)
+                # 条件1: 属性が同じでラベルが異なる (Minimize -> 逆向き)
                 if (y_u != y_v) and (a_u == a_v):
                     total_reg_loss = total_reg_loss + (cosine_reg_weights.get('sameA_diffY', 0.0) * cosine_val)
-                # 条件2: 属性が異なりラベルも異なる (Minimize -> 逆向き化)
+                # 条件2: 属性が異なりラベルも異なる (Minimize -> 逆向き)
                 elif (y_u != y_v) and (a_u != a_v):
                     total_reg_loss = total_reg_loss + (cosine_reg_weights.get('diffA_diffY', 0.0) * cosine_val)
-                # 条件3: 属性が異なりラベルが同じ (Maximize -> 同じ向き化)
+                # 条件3: 属性が異なりラベルが同じ (Maximize -> 同じ向き)
                 elif (y_u == y_v) and (a_u != a_v):
                     total_reg_loss = total_reg_loss - (cosine_reg_weights.get('diffA_sameY', 0.0) * cosine_val)
                 
@@ -140,7 +140,7 @@ def train_epoch(
     
     if reg_end_epoch is not None:
         if epoch >= reg_end_epoch:
-            # 終了エポックを超えたら完全に無効化
+            # 終了エポックを超えたら無効化
             reg_weight_factor = 0.0
         elif reg_decay_start_epoch is not None and epoch >= reg_decay_start_epoch:
             # 減衰期間中: Linear Decay (1.0 -> 0.0)
@@ -149,15 +149,14 @@ def train_epoch(
             if total_decay_steps > 0:
                 progress = (epoch - reg_decay_start_epoch) / float(total_decay_steps)
                 reg_weight_factor = 1.0 - progress
-                
-                # ログ出力 (確認用: 10エポックごと，または減衰開始時に出力)
+
                 if (epoch + 1) % 10 == 0 or epoch == reg_decay_start_epoch:
                     print(f"  [Epoch {epoch+1}] Regularization decaying... factor: {reg_weight_factor:.4f}")
             else:
                 reg_weight_factor = 0.0
 
-    # --- 正則化の設定読み込みと重みの適用 ---
-    # 係数が 0 なら正則化計算自体をスキップするためにフラグを落とす
+    # --- 正則化の設定の読み込みと重みの適用 ---
+    # 係数が 0 なら正則化の計算自体をスキップするためにフラグを落とす
     should_apply_reg = False
     kernel_reg_weights = None
     cosine_reg_weights = None
@@ -178,7 +177,7 @@ def train_epoch(
             if not any(w != 0 for w in kernel_reg_weights.values()):
                 kernel_reg_weights = None
 
-        # コサイン類似度正則化の重み設定 (factor を乗算して減衰させる)
+        # コサイン類似度の正則化の重み設定 (factor を乗算して減衰させる)
         if use_cosine_reg:
             cosine_reg_weights = {
                 'sameA_diffY': config.get('cosine_reg_weight_sameA_diffY', 0.0) * reg_weight_factor,
@@ -191,12 +190,12 @@ def train_epoch(
 
         should_apply_reg = (kernel_reg_weights is not None) or (cosine_reg_weights is not None)
 
-    # jacobian_num_samples を config から取得 (analysis設定と共有または別途指定)
+    # jacobian_num_samples を config から取得
     jac_num_samples = config.get('jacobian_num_samples', 100)
 
     # --- 学習ステップの分岐 ---
     if debias_method == 'IW_uniform':
-        # --- IW (Uniform Target) の学習ステップ (フルバッチ・グループ別勾配) ---
+        # --- IW (Uniform Target) の学習ステップ (フルバッチ・グループ別の勾配) ---
         optimizer.zero_grad()
         group_grads_list = {} # パラメータごとの勾配リストを格納
 
@@ -251,7 +250,7 @@ def train_epoch(
         optimizer.step()
 
     elif debias_method == 'GroupDRO':
-        # --- Group DRO 学習ステップ (フルバッチ・グループ別勾配) ---
+        # --- Group DRO 学習ステップ (フルバッチ・グループ別の勾配) ---
         optimizer.zero_grad()
         group_grads_list = {} # パラメータごとの勾配リスト
         group_losses_tensor = torch.zeros(len(group_keys), device=device)
@@ -318,7 +317,7 @@ def train_epoch(
         optimizer.step()
 
     elif debias_method == 'None':
-        # --- 通常のERM学習ステップ (ミニバッチ) ---
+        # --- 通常のERMによる学習ステップ (ミニバッチ) ---
         for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()

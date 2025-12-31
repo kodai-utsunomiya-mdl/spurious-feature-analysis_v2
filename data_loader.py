@@ -11,14 +11,6 @@ from PIL import Image
 import sys
 import torch.nn.functional as F
 
-# # 'wilds'ライブラリのインポート
-# try:
-#     import wilds
-# except ImportError:
-#     print("Warning: 'wilds' library not found. WaterBirds dataset will not be available.")
-#     print("Please install it using: pip install wilds")
-#     wilds = None
-
 def colorize_mnist(images_all, labels_0_9_all, num_samples, label_marginal, attribute_marginal, correlation, exclude_indices=None):
     """ 
     MNISTデータセットに色付けを行い，指定された統計量を持つデータを作成
@@ -64,7 +56,7 @@ def colorize_mnist(images_all, labels_0_9_all, num_samples, label_marginal, attr
     probabilities = [pi_pp, pi_pn, pi_np, pi_nn]
     
     # 確率が [0, 1] の範囲外になる場合はエラー
-    if not all(p >= -1e-6 for p in probabilities): # 浮動小数点誤差を許容
+    if not all(p >= -1e-6 for p in probabilities):
         raise ValueError(f"Invalid statistics (y_bar={y_bar}, a_bar={a_bar}, rho={rho_train}) result in negative probabilities: {probabilities}")
     if abs(sum(probabilities) - 1.0) > 1e-6:
         raise ValueError(f"Probabilities do not sum to 1: {probabilities}")
@@ -91,7 +83,7 @@ def colorize_mnist(images_all, labels_0_9_all, num_samples, label_marginal, attr
     # Y=-1 グループが必要とする合計
     N_neg_needed = N_np + N_nn
 
-    # 不足している場合の処理 (サンプル数を縮小する)
+    # 不足している場合の処理 (サンプル数を縮小)
     ratio_pos = len(all_indices_y_pos) / N_pos_needed if N_pos_needed > 0 else 1.0
     ratio_neg = len(all_indices_y_neg) / N_neg_needed if N_neg_needed > 0 else 1.0
     min_ratio = min(ratio_pos, ratio_neg)
@@ -260,7 +252,7 @@ def get_waterbirds_dataset(num_train, num_test, image_size):
             print("https://www.kaggle.com/datasets/bahardibaie/waterbird?resource=download")
             print(f"And place it in the following directory: {data_dir}")
             print("="*80)
-            sys.exit(1) # プログラムを停止
+            sys.exit(1)
         
         # zipファイルが存在する場合は展開する
         print(f"Extracting {archive_path}...")
@@ -350,7 +342,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     # 2. データのフィルタリング
     mnist_mask_0 = (mnist_targets == 0)
     mnist_mask_1 = (mnist_targets == 1)
-    # CIFARのターゲットはリスト形式の場合があるためTensor化
+
     cifar_tensor_targets = torch.tensor(cifar_targets)
     cifar_mask_car = (cifar_tensor_targets == 1)
     cifar_mask_truck = (cifar_tensor_targets == 9)
@@ -371,7 +363,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
         cifar_indices_car = np.array([i for i in cifar_indices_car if i not in ex_c])
         cifar_indices_truck = np.array([i for i in cifar_indices_truck if i not in ex_c])
 
-    # 3. グループごとのサンプル数計算 (colorize_mnistと同様のロジックを使用)
+    # 3. グループごとのサンプル数の計算
     y_bar = label_marginal
     a_bar = attribute_marginal
     rho_train = correlation
@@ -469,10 +461,10 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     ])
 
     # 5. 画像生成と結合
-    # 正規化: [0, 1] に統一 (ColoredMNIST, WaterBirdsと同じ)
+    # 正規化: [0, 1] に統一
     
     # 目標サイズ
-    target_h, target_w = image_size, image_size # 通常224
+    target_h, target_w = image_size, image_size
     
     # --- レイアウト設定 ---
     # MNISTを小さく，CIFARを大きくする
@@ -481,7 +473,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     # CIFARの高さ (残り全部 = 176px)
     cifar_fixed_h = target_h - mnist_fixed_h 
     
-    # --- MNIST処理 ---
+    # --- MNISTの処理 ---
     # (N, 28, 28) -> Resize(48, 48) -> RGB -> Padding to (48, 224)
     mnist_raw = mnist_images[mnist_indices_sample].float() / 255.0
     mnist_raw = mnist_raw.unsqueeze(1) # (N, 1, 28, 28)
@@ -499,7 +491,7 @@ def create_dominoes_dataset(mnist_images, mnist_targets, cifar_images, cifar_tar
     # F.pad引数: (left, right, top, bottom)
     mnist_final = F.pad(mnist_rgb, (pad_left, pad_right, 0, 0), value=0) # (N, 3, 48, 224)
 
-    # --- CIFAR処理 ---
+    # --- CIFARの処理 ---
     # (N, 32, 32, 3) numpy -> Tensor(N, 3, 32, 32) -> Resize(176, 224)
     cifar_raw_np = cifar_images[cifar_indices_sample]
     cifar_tensor = torch.from_numpy(cifar_raw_np).float().permute(0, 3, 1, 2) / 255.0 # (N, 3, 32, 32)

@@ -127,7 +127,7 @@ def balance_indices(y, a, random_state=None):
 
 def dfr_tune(X_source, y_source, a_source, scaler, config):
     """
-    [著者実装準拠] 
+    [原論文の実装に準拠] 
     Validationデータ (X_source) をさらに2分割してハイパーパラメータ(C)を探索する
     scaler: Trainデータでfit済みのStandardScaler
     """
@@ -243,7 +243,7 @@ def dfr_tune(X_source, y_source, a_source, scaler, config):
 
 def dfr_train(X_source, y_source, a_source, best_c, scaler, config):
     """
-    [著者実装準拠]
+    [原論文の実装に準拠]
     Validationデータ全体 (X_source) を使って再学習 (Retraining)
     複数回行って重みを平均化する
     scaler: Trainデータでfit済みのStandardScaler
@@ -331,7 +331,7 @@ def train_baseline_model(X, y, loss_type, reg_type, c_options, random_state=42):
     学習データ全体 (Imbalanced) を使用してベースラインの回帰モデルを学習する．
     正則化ありの場合は，学習データを分割してAvg Accに基づいてCをチューニングする．
     """
-    # データをチューニング用に分割 (80/20)
+    # データをチューニング用に分割
     n = len(X)
     rng = np.random.RandomState(random_state)
     perm = rng.permutation(n)
@@ -508,7 +508,7 @@ def compute_subspace_principal_angles(Z, y_discrete):
 
 def compute_feature_alignment(Z, y_discrete, a_discrete):
     """
-    特徴空間 Z 内における、ラベル Y の予測成分と属性 A の予測成分の間の
+    特徴空間 Z 内における，ラベル Y の予測成分と属性 A の予測成分の間の
     幾何学的整合度 (Feature Alignment, cos gamma_2) を計算する．
     
     1. Z に定数項を追加してアフィン空間を構成．
@@ -607,7 +607,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     train_embeddings = get_embeddings(model, X_train, target_layer_name, device=device)
     test_embeddings = get_embeddings(model, X_test, target_layer_name, device=device)
 
-    # StandardScaler は Trainデータ で Fit させる (著者実装準拠)
+    # StandardScaler は Trainデータ で Fit させる (原論文の実装に準拠)
     print("Fitting StandardScaler on TRAIN data...")
     scaler = StandardScaler()
     scaler.fit(train_embeddings)
@@ -648,7 +648,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
         device, loss_function_name, eval_bs
     )
 
-    # モデル出力統計量
+    # モデル出力の統計量
     if config.get('analyze_model_output_expectation', False):
         print("  Calculating DFR model output statistics...")
         train_out_stats = analysis.analyze_model_output_expectation(
@@ -758,7 +758,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     X_train_np = train_embeddings
     y_train_np = y_train.cpu().numpy()
     
-    # Scale X_train for training (scaler is already fit on it, so transform)
+    # Scale X_train for training
     X_train_scaled = scaler.transform(X_train_np)
     
     loss_type = config.get('dfr_loss_type', 'logistic')
@@ -794,6 +794,5 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
         for i, loss in enumerate(base_test_metrics['group_losses']):
             acc = base_test_metrics['group_accs'][i]
             print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
-            
-    # 戻り値を拡張
+
     return dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, align_val, align_test

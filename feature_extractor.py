@@ -6,7 +6,6 @@ import torchvision.models as models
 from torchvision import transforms
 import warnings
 
-# torchvision.models.feature_extraction をインポート
 try:
     from torchvision.models.feature_extraction import create_feature_extractor
 except ImportError:
@@ -30,7 +29,7 @@ class ViTFeatureExtractor(torch.nn.Module):
         self.model_name = model_name
         self.aggregation_mode = aggregation_mode
 
-        # --- モデルタイプとブロック構造の特定 ---
+        # モデルタイプとブロック構造の特定
         if 'DINOv2' in self.model_name:
             self.model_type = 'dinov2'
             self.blocks = self.vit_model.blocks
@@ -42,7 +41,7 @@ class ViTFeatureExtractor(torch.nn.Module):
         else:
             raise ValueError(f"Unknown ViT model name: {model_name}. Cannot determine structure.")
 
-        # --- ターゲットブロックのインデックスを解決 ---
+        # ターゲットブロックのインデックスを解決
         if target_block_index < 0:
             self.target_block_index = self.num_blocks + target_block_index
         else:
@@ -142,7 +141,7 @@ class ViTFeatureExtractor(torch.nn.Module):
             raise ValueError(f"Unknown vit_aggregation_mode: {self.aggregation_mode}")
 
 
-# --- 特徴抽出ヘルパー関数 ---
+# 特徴抽出のヘルパー関数
 def extract_features(extractor, X_data, device, batch_size=64):
     """ 
     OOMを避けるためミニバッチで特徴抽出を実行
@@ -164,7 +163,7 @@ def extract_features(extractor, X_data, device, batch_size=64):
         for i, (batch,) in enumerate(loader):
             batch = batch.to(device)
             
-            # 1チャンネル (白黒) なら3チャンネル (擬似カラー) に複製
+            # 1チャンネル (白黒) なら3チャンネル (擬似的なカラー) に複製
             if batch.shape[1] == 1:
                 # (N, 1, H, W) -> (N, 3, H, W)
                 batch = batch.repeat(1, 3, 1, 1)
@@ -180,7 +179,7 @@ def extract_features(extractor, X_data, device, batch_size=64):
     print("Feature extraction complete.")
     return torch.cat(features_list, dim=0)
 
-# キャッシュファイル名生成ヘルパー
+# キャッシュファイル名を生成するヘルパー
 def get_cache_filename(dataset_name, model_name, config, split):
     """設定に基づいて一意なキャッシュファイル名を生成"""
     name_parts = [dataset_name, model_name]
@@ -228,18 +227,17 @@ def setup_feature_extractor(config):
     config に基づいて特徴抽出器モデルをセットアップし，
     モデルとMLPの入力次元を返す．
     """
-    
     model_name = config.get('feature_extractor_model_name', 'ResNet18') 
     print(f"Setting up feature extractor: {model_name}...")
     
     feature_extractor = None
     input_dim_for_mlp = None 
 
-    # --- モデル名に基づいてロード ---
+    # モデル名に基づいてロード
     if 'ResNet' in model_name:
         # --- 1. ResNet系 (ResNet18, ResNet50) ---
         
-        # (ResNet系 固有の設定)
+        # ResNet系 固有の設定
         intermediate_layer_name = config.get('feature_extractor_resnet_intermediate_layer', 'avgpool')
         pool_output_size = config.get('feature_extractor_resnet_pooling_output_size', 1)
         
@@ -298,7 +296,7 @@ def setup_feature_extractor(config):
     elif 'ViT' in model_name:
         print(f"Using {model_name}.")
         
-        # --- ViT/DINOv2 固有の設定を読み込み ---
+        # ViT/DINOv2 固有の設定を読み込み
         target_block = config.get('feature_extractor_vit_target_block', -1)
         aggregation_mode = config.get('feature_extractor_vit_aggregation_mode', 'cls_token')
         
@@ -329,8 +327,7 @@ def setup_feature_extractor(config):
             
             try:
                 # torch.hub.set_dir('.') # 保存場所をカレントディレクトリに指定したい場合
-                
-                # xFormers 関連の警告を抑制
+
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", message=".*xFormers is not available.*")
                     base_model = torch.hub.load('facebookresearch/dinov2', hub_model_name)
