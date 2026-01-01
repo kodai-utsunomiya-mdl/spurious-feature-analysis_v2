@@ -2,10 +2,10 @@
 
 ## Main Features
 
-* **Datasets**: Supports `ColoredMNIST` and `WaterBirds`.
+* **Datasets**: Supports `ColoredMNIST`, `WaterBirds`, and `Dominoes`.
 * **Feature Extraction**:
     * Enables training an MLP on either raw pixel data or features extracted from pre-trained models.
-    * Supports various feature extractors including `ResNet18/50`, `ViT_B_16`, and `DINOv2` variants (`S`, `B`,`L`, `G`).
+    * Supports various feature extractors including `ResNet18/50`, `ViT_B_16`, and `DINOv2` variants (`S`, `B`, `L`, `G`).
     * Allows feature extraction from any intermediate block of `ResNet` or `ViT`/`DINOv2`.
 * **Training Methods**:
     * Standard ERM (`debias_method: "None"`)
@@ -13,10 +13,15 @@
     * Group Distributionally Robust Optimization (GroupDRO) (`debias_method: "GroupDRO"`)
 * **Deep Feature Reweighting (DFR)**:
     * Supports evaluating the quality of learned features by re-training the last layer (Logistic Regression) on a balanced validation set.
-    * Can target any intermediate layer for DFR application (`dfr_target_layer`).
-    * Supports flexible validation strategies (using the original validation set or splitting from the training set).
+    * Automatically generates a balanced validation set based on the dataset type:
+        * **ColoredMNIST / Dominoes**: Generated from the remaining source data candidates not used for the training set.
+        * **WaterBirds**: Sub-sampled from the dataset's official validation set to ensure class balance.
 * **In-Depth Analysis**:
-    * Executes detailed analyses from `analysis.py` (e.g., gradient basis, Jacobian norms, static/dynamic decomposition) at any checkpoint during training.
+    * Executes detailed analyses from `analysis.py` at checkpoints:
+        * Gradient basis & Jacobian norms
+        * Static/Dynamic component decomposition
+        * UMAP representation & Singular Value Decomposition (SVD)
+        * Model output expectation/variance
 * **Logging**:
     * Logs experiment results to `wandb` (Weights & Biases).
 
@@ -28,9 +33,11 @@
 
 ### b. Dataset Preparation
 
-#### ColoredMNIST
+#### ColoredMNIST & Dominoes
 
-Automatically downloaded to the `./data` directory by `data_loader.py`.
+Automatically downloaded to the `./data` directory via `torchvision` in `data_loader.py`.
+* **ColoredMNIST**: Generated from MNIST.
+* **Dominoes**: Generated from MNIST and CIFAR10.
 
 #### WaterBirds
 
@@ -72,9 +79,10 @@ The `config.yaml` file contains the primary parameters for controlling experimen
 ### Basic Settings
 
 * `experiment_name`: Name of the experiment. Used for `results` directory and `wandb`.
-* `dataset_name`: Specify `ColoredMNIST` or `WaterBirds`.
+* `dataset_name`: Specify `ColoredMNIST`, `WaterBirds`, or `Dominoes`.
 * `loss_function`: `logistic` or `mse`.
 * `device`: `cuda` or `cpu`.
+* `use_grayscale`: If `true`, converts images to 1-channel grayscale (valid when not using feature extractor).
 
 ### Feature Extractor (`feature_extractor.py`)
 
@@ -90,29 +98,41 @@ The `config.yaml` file contains the primary parameters for controlling experimen
 
 ### Model (`model.py`)
 
-* `num_hidden_layers`, `hidden_dim`: Structure of the MLP trained on the features.
-* `initialization_method`: Specify `muP` or `NTP`.
+* `initialization_method`: Specify `muP` (Maximal Update Parametrization) or `NTP` (Standard).
+* `activation_function`: `relu`, `gelu`, `tanh`, `identity`, `silu`, `softplus`, or `abs`.
+* **MLP Structure**:
+    * `num_hidden_layers`: Total hidden layers (used when `use_skip_connections: false`).
+    * `hidden_dim`: Width of hidden layers.
+* **ResNet Structure**:
+    * `use_skip_connections`: Set to `true` to use Residual connections.
+    * `num_residual_blocks`: Number of residual blocks (L) (used when `use_skip_connections: true`).
 
 ### Training (`trainer.py`)
 
 * `epochs`: Total number of epochs.
-* `debias_method`: Select from `None` (ERM), `IW_uniform` (v\_inv gradient flow), `GroupDRO`.
-* `dro_eta_q`: Step size (learning rate) for updating GroupDRO group weights `q`.
+* `optimizer`: `Adam` or `SGD`.
+* `learning_rate`: Base learning rate.
+* `momentum`: Momentum factor (for SGD).
+* `debias_method`: Select from `None` (ERM), `IW_uniform` (v_inv gradient flow), `GroupDRO`.
+* `dro_eta_q`: Step size for updating GroupDRO group weights.
+* `fix_final_layer`: If `true`, freezes the weights of the final classification layer.
 
 ### Deep Feature Reweighting (DFR)
 
 * `use_dfr`: If `true`, DFR is executed after the main training loop.
-* `dfr_target_layer`: Layer to extract features from for DFR (e.g., `"last_hidden"`, `"layer_1"`).
-* `dfr_val_split_strategy`:
-    * `"original"`: Uses the dataset's official validation set (recommended for WaterBirds).
-    * `"split_from_train"`: Splits the training set to create a validation set (recommended for ColoredMNIST).
-* `dfr_val_ratio`: Ratio of training data to use as validation when `split_from_train` is selected.
-* `dfr_reg`, `dfr_c_options`: Regularization settings for the logistic regression in DFR.
+* `dfr_val_samples_per_group`: Number of samples per group (g, y) to use for the balanced DFR validation set (default: 100).
+* `dfr_reg`: Regularization strength (inverse of C) for DFR logistic regression.
 
 ### Analysis (`analysis.py`)
 
-* `analyze_jacobian_norm`, `analyze_gradient_basis`, `analyze_gap_dynamics_factors`, `analyze_static_dynamic_decomposition`: If `true`, the corresponding detailed analysis will be executed.
-* `..._analysis_epochs`: If `null` (or key omitted), runs analysis every epoch. If a list is specified (e.g., `[10, 100, 1000]`), runs analysis only at those epochs.
-* Others.
+* **Analysis Flags**:
+    * `analyze_jacobian_norm`
+    * `analyze_gradient_basis`
+    * `analyze_gap_dynamics_factors`
+    * `analyze_static_dynamic_decomposition`
+    * `analyze_model_output_expectation`
+    * `analyze_umap_representation`
+    * `analyze_singular_values`
+* `..._analysis_epochs`: If `null` (or key omitted), runs analysis every epoch. If a list is specified (e.g., `[0, 10, 100]`), runs analysis only at those epochs.
 
 </details>
