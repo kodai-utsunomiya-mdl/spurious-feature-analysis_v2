@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-"""_muP (TP4 Table 9)_
+"""_muP (TP5論文 Table 9)_
 
 |  | Input weights & all biases | Output weights | Hidden weights |
 | --- | --- | --- | --- |
@@ -16,10 +16,10 @@ import numpy as np
 
 """
 
-class CustomLinear(nn.Module):
+class ParametrizedLinear(nn.Module):
     """
     重みとバイアスを定義し，特定のmultiplierと初期化分散でparametrizationを行う線形層．
-    TP4論文の "Table 9: muP Formulation in the Style of [57]..." の形式に従う．
+    TP5論文の "Table 9: muP Formulation in the Style of [57]..." の形式に従う．
     """
     def __init__(self, in_features, out_features, bias=True, 
                  weight_mult=1.0, bias_mult=1.0, 
@@ -76,7 +76,9 @@ class CustomLinear(nn.Module):
                 f'weight_init_std={self.weight_init_std:.2e}, bias_init_std={self.bias_init_std:.2e}')
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_hidden_layers, activation_fn='relu', 
+    def __init__(self, input_dim, hidden_dim, 
+                 num_residual_blocks=None, num_hidden_layers=None,
+                 activation_fn='relu', 
                  use_skip_connections=False, initialization_method='muP', 
                  use_bias=False, use_zero_bias_init=False):
         """
@@ -84,7 +86,8 @@ class MLP(nn.Module):
         Args:
             input_dim (int): 入力次元数
             hidden_dim (int): 隠れ層の次元数 (m)
-            num_hidden_layers (int): 隠れ層の数
+            num_residual_blocks (int, optional): 残差ブロックの数 L (use_skip_connections=True の場合に使用)
+            num_hidden_layers (int, optional): 隠れ層の総数 H (use_skip_connections=False の場合に使用)
             activation_fn (str): 活性化関数名 ('relu', 'gelu', 'tanh', 'identity')
             use_skip_connections (bool): Skip Connectionを使用するかどうかのフラグ
             initialization_method (str): パラメータ化の手法 ('muP', 'NTP')
@@ -92,8 +95,6 @@ class MLP(nn.Module):
             use_zero_bias_init (bool): バイアスを0で初期化するかどうかのフラグ (True: 0, False: ランダム)
         """
         super().__init__()
-        if num_hidden_layers < 1:
-            raise ValueError("num_hidden_layers must be at least 1.")
         
         if initialization_method not in ['muP', 'NTP']:
              raise ValueError(f"Unknown initialization_method: {initialization_method}. Only 'muP' and 'NTP' are supported.")
@@ -101,23 +102,61 @@ class MLP(nn.Module):
         self.use_skip_connections = use_skip_connections
         self.initialization_method = initialization_method
         self.hidden_dim = float(hidden_dim) # スケーリングのために float に (m)
-        self.num_hidden_layers = num_hidden_layers
         self.use_bias = use_bias
         self.use_zero_bias_init = use_zero_bias_init
-        
+
+        # 構成の決定 (ResNet/MLP)
+        # additional_layers_count: Input Layerの後に追加するブロック・層の数
+        # ResNet (Skipあり): L = num_residual_blocks
+        # MLP (Skipなし)   : H-1 = num_hidden_layers - 1 
+        if self.use_skip_connections:
+            # ResNet
+            if num_residual_blocks is None:
+                if num_hidden_layers is not None:
+                    print(f"[Warning] use_skip_connections=True but num_residual_blocks is None. Using num_hidden_layers ({num_hidden_layers}) as L.")
+                    self.num_blocks = num_hidden_layers
+                else:
+                    raise ValueError("num_residual_blocks must be specified when use_skip_connections=True.")
+            else:
+                self.num_blocks = num_residual_blocks
+            
+            additional_layers_count = self.num_blocks
+            self.model_type = "ResNet"
+            depth_scaling_L = self.num_blocks
+            
+        else:
+            # MLP
+            if num_hidden_layers is None:
+                raise ValueError("num_hidden_layers must be specified when use_skip_connections=False.")
+            
+            if num_hidden_layers < 1:
+                raise ValueError("num_hidden_layers must be at least 1.")
+            
+            self.total_hidden_layers = num_hidden_layers
+            additional_layers_count = self.total_hidden_layers - 1
+            self.model_type = "MLP"
+            depth_scaling_L = 1
+
+        self.depth_scaling_L = depth_scaling_L
+
         # スケーリング係数と初期化分散の計算
         m = self.hidden_dim
         sqrt_m = np.sqrt(m)
         
-        print(f"\nInitializing MLP with method: '{initialization_method}'")
+        print(f"\nInitializing {self.model_type} with method: '{initialization_method}'")
         print(f"        - Hidden Dim (m): {int(m)}")
+        if self.model_type == "ResNet":
+            print(f"        - Depth L (num_residual_blocks): {self.num_blocks} (Total Hidden Layers: {1 + self.num_blocks})")
+        else:
+            print(f"        - Total Hidden Layers (H): {self.total_hidden_layers} (Structure: Raw Input + {1 + additional_layers_count} Layers)")
+
         if use_bias:
             init_type = "Zero" if use_zero_bias_init else "Random"
             print(f"        - Bias: Enabled (Initialization: {init_type})")
 
         # --- 各層の設定 (Multiplier & Init Std) ---
         
-        # 1. 入力層 (Input Layer)
+        # 1. 入力層 (Input Layer / Projection W_in)
         # muP: 
         #   - W mult: sqrt(m)
         #   - b mult: sqrt(m)
@@ -148,7 +187,7 @@ class MLP(nn.Module):
         else:
             print(f"        - Input Layer:  W mult={in_w_mult:.2f}, W init std={in_w_init_std:.2e}, b init std={in_b_init_std:.2e}")
 
-        self.input_layer = CustomLinear(
+        self.input_layer = ParametrizedLinear(
             input_dim, int(m), 
             bias=in_bias_flag, 
             weight_mult=in_w_mult, 
@@ -157,10 +196,11 @@ class MLP(nn.Module):
             bias_init_std=in_b_init_std
         )
 
-        # 2. 隠れ層 (Hidden Layers)
-        # muP: 
-        #   - W mult: 1.0
-        #   - b mult: sqrt(m)
+        # 2. 隠れ層 (Hidden Layers / Residual Blocks)
+        # muP (TP5 + TP6 Depth): 
+        #   - W mult: 1.0 (TP5 Table 9)
+        #   - b mult: sqrt(m) (TP5 Table 9)
+        #   - Depth Multiplier (Branch): 1/sqrt(L) (TP6) -> forwardで適用
         #   - W init: N(0, 1/m) -> std = 1/sqrt(m)
         #   - b init: N(0, 1/m) -> std = 1/sqrt(m)
         # NTP: 
@@ -169,19 +209,15 @@ class MLP(nn.Module):
         self.hidden_layers = nn.ModuleList()
 
         # --- Depth-muP Scaling の計算 ---
-        residual_blocks_L = num_hidden_layers
-        
-        depth_mult = 1.0
-        # muP かつ Skip Connection あり かつ residual_blocks_L >= 1 の場合のみスケーリングを適用
-        if initialization_method == 'muP' and use_skip_connections and residual_blocks_L > 0:
-            depth_mult = 1.0 / np.sqrt(residual_blocks_L)
-            print(f"        - Depth-muP: Scaling residual branches by 1/sqrt({residual_blocks_L}) = {depth_mult:.4f}")
+        self.depth_mult = 1.0
+        if initialization_method == 'muP' and use_skip_connections and depth_scaling_L > 0:
+            self.depth_mult = 1.0 / np.sqrt(depth_scaling_L)
+            print(f"        - Depth-muP: Scaling residual branches by 1/sqrt(L) = 1/sqrt({depth_scaling_L}) = {self.depth_mult:.4f}")
         
         if initialization_method == 'muP':
-            # depth_mult を乗算してブランチ全体をスケーリング
-            hid_w_mult = 1.0 * depth_mult
-            hid_b_mult = sqrt_m * depth_mult
-            
+            hid_w_mult = 1.0
+            hid_b_mult = sqrt_m
+
             hid_w_init_std = 1.0 / sqrt_m
             hid_b_init_std = 1.0 / sqrt_m
             hid_bias_flag = use_bias
@@ -196,14 +232,15 @@ class MLP(nn.Module):
         if self.use_zero_bias_init:
             hid_b_init_std = 0.0
 
-        if initialization_method == 'muP':
-            print(f"        - Hidden Layers: W mult={hid_w_mult:.2f}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
-        else:
-            print(f"        - Hidden Layers: W mult={hid_w_mult:.2e}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
+        if additional_layers_count > 0:
+            if initialization_method == 'muP':
+                print(f"        - Hidden Layers: W mult={hid_w_mult:.2f}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
+            else:
+                print(f"        - Hidden Layers: W mult={hid_w_mult:.2e}, W init std={hid_w_init_std:.2e}, b init std={hid_b_init_std:.2e}")
 
-        # 残差ブロックを num_hidden_layers 回繰り返す (residual_blocks_L = num_hidden_layers)
-        for _ in range(num_hidden_layers):
-            self.hidden_layers.append(CustomLinear(
+        # 層を追加
+        for _ in range(additional_layers_count):
+            self.hidden_layers.append(ParametrizedLinear(
                 int(m), int(m),
                 bias=hid_bias_flag,
                 weight_mult=hid_w_mult,
@@ -243,7 +280,7 @@ class MLP(nn.Module):
         else:
             print(f"        - Output Layer: W mult={out_w_mult:.2e}, W init std={out_w_init_std:.2e}, b init std={out_b_init_std:.2e}")
             
-        self.classifier = CustomLinear(
+        self.classifier = ParametrizedLinear(
             int(m), 1,
             bias=out_bias_flag,
             weight_mult=out_w_mult,
@@ -252,7 +289,7 @@ class MLP(nn.Module):
             bias_init_std=out_b_init_std
         )
 
-        # 活性化関数の設定
+        # 活性化関数
         if activation_fn == 'relu':
             self.activation = nn.ReLU()
         elif activation_fn == 'gelu':
@@ -265,6 +302,8 @@ class MLP(nn.Module):
             self.activation = nn.SiLU()
         elif activation_fn == 'softplus':  # Smoothed ReLU
             self.activation = nn.Softplus()
+        elif activation_fn == 'abs':
+            self.activation = torch.abs
         else:
             raise ValueError(f"Unknown activation function: {activation_fn}")
 
@@ -272,39 +311,55 @@ class MLP(nn.Module):
     def forward(self, x):
         outputs = {}
         z = x.view(x.shape[0], -1)
-        outputs['layer_0'] = z
+        
+        # --- 0. Input Layer (Raw Input) ---
+        outputs['layer_0'] = z 
 
-        # --- 1. 入力層 ---
-        # CustomLinear内でスケーリングが行われるため，ここでは単に呼び出すだけ
+        # --- 1. 最初の隠れ層 (Projection / First Hidden) ---
+        # ResNet: Y_0 = W_in x
+        # MLP: Hidden 1 = W_in x
         z = self.input_layer(z)
-        # z = self.activation(z) 
-        outputs['layer_1'] = z
+        outputs['layer_1'] = z 
 
-        # --- 2. 隠れ層 ---
-        # 隠れ層のリストは input_layer の次から始まるため，インデックスに注意
-        # loop index i=0 -> layer name "layer_2"
+        # --- 2. 追加の隠れ層 ---
+        # ResNet (TP6): Y_l = Y_{l-1} + 1/sqrt(L) * MS(phi(W_l Y_{l-1}))
+        # MLP: h_l = W_l phi(h_{l-1})
         for i, layer in enumerate(self.hidden_layers): 
             identity = z 
-
-            z_act = self.activation(z)
-
-            # 線形変換 (スケーリング込み)
-            branch = layer(z_act)
-
-            # Skip Connection
+            
             if self.use_skip_connections:
-                z = identity + branch
-            else:
-                z = branch
+                # [ResNet] TP6 Structure: Post-Nonlin
+                # 1. Linear Transform (W * x)
+                branch = layer(z) 
+                
+                # 2. Activation
+                branch = self.activation(branch)
+                
+                # 3. Mean Subtraction (TP6)
+                # Feature Diversityを維持するため
+                if self.initialization_method == 'muP':
+                     branch = branch - branch.mean(dim=1, keepdim=True)
 
-            # 活性化関数はここでは適用しない (次ループの先頭または出力層前で行う)
+                # 4. Depth Scaling (Branch Multiplier)
+                # Apply 1/sqrt(L) to the branch
+                if self.initialization_method == 'muP':
+                    branch = branch * self.depth_mult
+
+                # 5. Skip Connection
+                z = identity + branch
+                
+            else:
+                # [MLP] Standard Pre-Nonlin / Pre-Activation Structure
+                z_act = self.activation(z) 
+                branch = layer(z_act)
+                z = branch 
+            
+            # i=0 (追加層1つ目) -> layer_2
             outputs[f'layer_{i+2}'] = z
 
-        # --- 3. 出力層 ---
+        # --- 3. 出力層 (Output Layer) ---
         # 最後に活性化関数を通してから分類器へ
         z_final = self.activation(z)
-
-        # CustomLinear内でスケーリング (W/sqrt_m など) が行われる
         output_scalar = self.classifier(z_final).squeeze(-1)
         outputs['logit'] = output_scalar
 
@@ -323,7 +378,14 @@ class MLP(nn.Module):
         m = self.hidden_dim
         sqrt_m = np.sqrt(m)
         
+        # Adamにおける深さ方向のLRスケーリング (1/sqrt(L))
+        depth_lr_scale = 1.0
+        if self.use_skip_connections and self.depth_scaling_L > 0:
+            depth_lr_scale = 1.0 / np.sqrt(self.depth_scaling_L)
+        
         print(f"Configuring Adam parameters for muP (m={int(m)})...")
+        if depth_lr_scale != 1.0:
+            print(f"  - Depth-muP: Scaling hidden layer LRs by 1/sqrt(L) = {depth_lr_scale:.4f}")
 
         # 1. Input Layer
         # Weights (fan_out=m): lr_scale = 1/sqrt(fan_out) = 1/sqrt(m)
@@ -342,8 +404,8 @@ class MLP(nn.Module):
         print(f"  - Input Layer (W, b): LR scale = 1/sqrt(m) = {input_lr_scale:.6f}")
         
         # 2. Hidden Layers
-        # Weights (fan_in=m): lr_scale = 1/fan_in = 1/m
-        # Biases (fan_out=m): lr_scale = 1/sqrt(fan_out) = 1/sqrt(m)
+        # Weights (fan_in=m): lr_scale = 1/fan_in = 1/m  (* 1/sqrt(L) for Depth-muP)
+        # Biases (fan_out=m): lr_scale = 1/sqrt(fan_out) = 1/sqrt(m) (* 1/sqrt(L) for Depth-muP)
         hidden_weights = []
         hidden_biases = []
         
@@ -353,37 +415,49 @@ class MLP(nn.Module):
                 hidden_biases.append(layer.bias)
         
         if hidden_weights:
-            hid_w_scale = 1.0 / m
+            # Depth-muP requires Adam LR to be scaled by 1/sqrt(L) for residual branches
+            hid_w_scale = (1.0 / m) * depth_lr_scale
             groups.append({
                 'params': hidden_weights, 
                 'lr': global_lr * hid_w_scale, 
                 'name': 'hidden_weights'
             })
-            print(f"  - Hidden Weights:     LR scale = 1/m       = {hid_w_scale:.6f}")
+            print(f"  - Hidden Weights:     LR scale = 1/m * 1/sqrt(L) = {hid_w_scale:.6f}")
 
         if hidden_biases:
-            hid_b_scale = 1.0 / sqrt_m
+            # Depth-muP requires Adam LR to be scaled by 1/sqrt(L)
+            hid_b_scale = (1.0 / sqrt_m) * depth_lr_scale
             groups.append({
                 'params': hidden_biases, 
                 'lr': global_lr * hid_b_scale, 
                 'name': 'hidden_biases'
             })
-            print(f"  - Hidden Biases:      LR scale = 1/sqrt(m) = {hid_b_scale:.6f}")
+            print(f"  - Hidden Biases:      LR scale = 1/sqrt(m) * 1/sqrt(L) = {hid_b_scale:.6f}")
 
         # 3. Output Layer
-        # Weights (fan_out=1): lr_scale = 1/sqrt(fan_out) = 1.0
-        # Biases (fan_out=1): lr_scale = 1/sqrt(fan_out) = 1.0
-        output_params = []
-        output_params.append(self.classifier.weight)
-        if self.classifier.bias is not None:
-            output_params.append(self.classifier.bias)
+        #   - Output weights: Adam LR = 1/sqrt(fan_in)
+        #   - Output biases: Adam LR = 1/sqrt(fan_out)
         
-        output_scale = 1.0
+        # 3-a. Output Weights
+        # fan_in = m -> lr_scale = 1/sqrt(m)
+        output_const = 50.0
+        output_w_scale = output_const / sqrt_m
         groups.append({
-            'params': output_params, 
-            'lr': global_lr * output_scale, 
-            'name': 'output_layer (W, b)'
+            'params': [self.classifier.weight], 
+            'lr': global_lr * output_w_scale, 
+            'name': 'output_layer_weights'
         })
-        print(f"  - Output Layer (W, b): LR scale = 1.0")
+        print(f"  - Output Layer Weights: LR scale = 1/sqrt(m) = {output_w_scale:.6f}")
+
+        # 3-b. Output Biases
+        # fan_out = 1 -> lr_scale = 1/sqrt(1) = 1.0
+        if self.classifier.bias is not None:
+            output_b_scale = 1.0
+            groups.append({
+                'params': [self.classifier.bias], 
+                'lr': global_lr * output_b_scale, 
+                'name': 'output_layer_biases'
+            })
+            print(f"  - Output Layer Biases:  LR scale = 1.0")
         
         return groups

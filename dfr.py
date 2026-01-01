@@ -64,12 +64,24 @@ def get_embeddings(model, X, target_layer_name_config, batch_size=1000, device='
     """
     model.eval()
     embeddings = []
-    
-    # ターゲット層の名前を決定
     target_layer_name = target_layer_name_config
+    
+    # "last_hidden" というキーワードが指定された場合のみ，モデル構造に応じて実際の層名を解決する
     if target_layer_name == "last_hidden":
-        # MLPモデルの最終隠れ層 (layer_N)
-        target_layer_name = f'layer_{model.num_hidden_layers}'
+        if hasattr(model, 'model_type'):
+            if model.model_type == 'ResNet':
+                # ResNet: Input(0) -> Proj(1) -> Blocks(L個, idx 2..L+1)
+                # 最終層は layer_{L+1} (L=num_blocks)
+                last_idx = model.num_blocks + 1
+            else:
+                # MLP: Input(0) -> Hidden(H個, idx 1..H)
+                # 最終層は layer_{H} (H=total_hidden_layers)
+                last_idx = model.total_hidden_layers
+            
+            target_layer_name = f'layer_{last_idx}'
+        else:
+            if hasattr(model, 'num_hidden_layers'):
+                target_layer_name = f'layer_{model.num_hidden_layers}'
     
     print(f"  [DFR] Extracting features from layer: {target_layer_name}")
 
@@ -91,9 +103,23 @@ def get_embeddings(model, X, target_layer_name_config, batch_size=1000, device='
                 emb = outputs[target_layer_name]
             else:
                 keys = sorted([k for k in outputs.keys() if k.startswith('layer_')])
+                
+                # キーが存在し，かつ "last_hidden" 指定だった場合のフォールバック
                 if target_layer_name_config == "last_hidden" and keys:
-                    emb = outputs[keys[-1]]
-                    print(f"  [Warning] 'last_hidden' ({target_layer_name}) not found. Using {keys[-1]} instead.")
+                    # キーをパースして最大のインデックスを探す
+                    try:
+                        max_idx = -1
+                        for k in keys:
+                            idx = int(k.split('_')[1])
+                            if idx > max_idx:
+                                max_idx = idx
+                        actual_last_layer = f'layer_{max_idx}'
+                        emb = outputs[actual_last_layer]
+                        print(f"  [Warning] Calculated target '{target_layer_name}' not found. Using '{actual_last_layer}' instead.")
+                    except:
+                        # パース失敗時は辞書順最後
+                        emb = outputs[keys[-1]]
+                        print(f"  [Warning] Calculated target '{target_layer_name}' not found. Using '{keys[-1]}' instead.")
                 else:
                     raise ValueError(f"Could not find layer '{target_layer_name}' in model outputs. Available keys: {list(outputs.keys())}")
             

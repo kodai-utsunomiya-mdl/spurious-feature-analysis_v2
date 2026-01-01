@@ -201,6 +201,15 @@ def get_cache_filename(dataset_name, model_name, config, split):
             name_parts.append(f"n{config.get('num_train_samples', 0)}")
         else: # test
             name_parts.append(f"n{config.get('num_test_samples', 0)}")
+    elif dataset_name == 'Dominoes':
+        if split == 'train':
+            name_parts.append(f"corr{config.get('train_correlation', 0.0)}")
+            name_parts.append(f"y{config.get('train_label_marginal', 0.0)}")
+            name_parts.append(f"a{config.get('train_attribute_marginal', 0.0)}")
+            name_parts.append(f"n{config.get('num_train_samples', 0)}")
+        else: # test
+            name_parts.append(f"corr{config.get('test_correlation', 0.0)}")
+            name_parts.append(f"n{config.get('num_test_samples', 0)}")
 
     # 特徴抽出器のパラメータを追加
     if 'ResNet' in model_name:

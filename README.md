@@ -1,11 +1,5 @@
 # Analysis of Gradient Flow and Group Performance Gaps under Spurious Correlations
 
-## Overview
-
-This repository provides research code for analyzing the learning dynamics of deep neural networks in the presence of spurious correlations.
-
-The main objective is to theoretically and empirically understand how biases in training data create, amplify, or maintain performance gaps between groups (e.g., majority and minority groups) during the learning process.
-
 ## Main Features
 
 * **Datasets**: Supports `ColoredMNIST` and `WaterBirds`.

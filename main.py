@@ -357,9 +357,12 @@ def main(config_path='config.yaml'):
     print(f"Using bias in MLP: {use_bias}")
     print(f"Using zero bias initialization: {use_zero_bias_init}")
 
+    # num_residual_blocks, num_hidden_layers の両方をConfigから渡す
     model = model_module.MLP(
         input_dim=input_dim, hidden_dim=config['hidden_dim'],
-        num_hidden_layers=config['num_hidden_layers'], activation_fn=config['activation_function'],
+        num_residual_blocks=config.get('num_residual_blocks', None),
+        num_hidden_layers=config.get('num_hidden_layers', None),
+        activation_fn=config['activation_function'],
         use_skip_connections=config['use_skip_connections'],
         initialization_method=config['initialization_method'],
         use_bias=use_bias,
@@ -389,7 +392,20 @@ def main(config_path='config.yaml'):
     if config.get('wandb', {}).get('enable', False):
         wandb.watch(model, log='parameters', log_freq=100)
 
-    all_target_layers = [f'layer_{i+1}' for i in range(config['num_hidden_layers'])]
+    # レイヤー名のリストを作成
+    # layer_0 = Input (Raw)
+    # layer_1 = First Hidden / Projection (Y_0)
+    # layer_2.. = Following Layers
+    if config['use_skip_connections']:
+        # ResNet
+        # Total = 1(Input) + 1(Proj) + num_blocks
+        all_target_layers = [f'layer_{i}' for i in range(model.num_blocks + 2)]
+    else:
+        # MLP
+        # Total = 1(Input) + num_hidden_layers
+        all_target_layers = [f'layer_{i}' for i in range(model.total_hidden_layers + 1)]
+        
+    print(f"Analysis target layers: {all_target_layers}")
 
     history = {k: [] for k in ['train_avg_loss', 'test_avg_loss', 'train_worst_loss', 'test_worst_loss',
                                'train_avg_acc', 'test_avg_acc', 'train_worst_acc', 'test_worst_acc',
