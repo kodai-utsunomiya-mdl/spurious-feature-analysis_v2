@@ -199,6 +199,8 @@ def get_cache_filename(dataset_name, model_name, config, split):
     elif dataset_name == 'WaterBirds':
         if split == 'train':
             name_parts.append(f"n{config.get('num_train_samples', 0)}")
+            if config.get('remove_minority_groups_train', False):
+                name_parts.append("no_minority")
         else: # test
             name_parts.append(f"n{config.get('num_test_samples', 0)}")
     elif dataset_name == 'Dominoes':

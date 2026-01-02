@@ -440,7 +440,7 @@ class MLP(nn.Module):
         
         # 3-a. Output Weights
         # fan_in = m -> lr_scale = 1/sqrt(m)
-        output_const = 50.0
+        output_const = 1.0 # 50.0
         output_w_scale = output_const / sqrt_m
         groups.append({
             'params': [self.classifier.weight], 

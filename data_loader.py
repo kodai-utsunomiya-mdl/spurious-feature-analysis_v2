@@ -235,7 +235,7 @@ def get_colored_mnist_all(config):
     return X_train, y_train, a_train, X_val, y_val, a_val, X_test, y_test, a_test
 
 
-def get_waterbirds_dataset(num_train, num_test, image_size):
+def get_waterbirds_dataset(num_train, num_test, image_size, remove_minority_from_train=False):
     """ WaterBirdsデータセットをロード (Train, Val, Test) """
     data_dir = 'data/waterbirds_v1.0'
     archive_path = os.path.join(data_dir, 'archive.zip')
@@ -308,6 +308,18 @@ def get_waterbirds_dataset(num_train, num_test, image_size):
     y_train_pm1 = y_train_01.float() * 2.0 - 1.0
     a_train_pm1 = a_train_01.float() * 2.0 - 1.0 
     
+    # 少数派グループを除外するオプション
+    if remove_minority_from_train:
+        print("  [Info] Removing minority groups (y != a) from Training set...")
+        # 多数派: y == a (Land on Land, Water on Water)
+        # 少数派: y != a (Land on Water, Water on Land)
+        # 多数派のみ残す
+        mask = (y_train_pm1 == a_train_pm1)
+        X_train = X_train[mask]
+        y_train_pm1 = y_train_pm1[mask]
+        a_train_pm1 = a_train_pm1[mask]
+        print(f"  -> Remaining training samples: {len(X_train)}")
+
     if y_val_01 is not None:
         y_val_pm1 = y_val_01.float() * 2.0 - 1.0
         a_val_pm1 = a_val_01.float() * 2.0 - 1.0

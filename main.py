@@ -181,7 +181,8 @@ def main(config_path='config.yaml'):
             X_train, y_train, a_train, X_val_raw, y_val_raw, a_val_raw, X_test, y_test, a_test = data_loader.get_waterbirds_dataset(
                 num_train=config['num_train_samples'],
                 num_test=config['num_test_samples'],
-                image_size=image_size
+                image_size=image_size,
+                remove_minority_from_train=config.get('remove_minority_groups_train', False)
             )
             
             # WaterBirdsの場合は，ここで公式Validationセットから均衡化されたDFR用データを作成

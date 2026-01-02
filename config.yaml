@@ -1,16 +1,16 @@
-# # # sp/config.yaml
+# # # # sp/config.yaml
 # #### ColoredMNIST
 
 # # ---------------------------------
 # # 実験の基本設定
 # # ---------------------------------
-# experiment_name: "cm_dfr_0update"
+# experiment_name: "cm_dfr_0update_1.0_mse"
 # dataset_name: "ColoredMNIST"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
-# loss_function: "logistic"          # "logistic" or "mse"
+# loss_function: "mse"          # "logistic" or "mse"
 # activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs'
 # initialization_method: "muP"  # "muP" or "NTP"
-# use_skip_connections: true   # skip connection (FalseならMLP, TrueならResNet)
-# use_bias: true               # バイアス項の有無
+# use_skip_connections: false   # skip connection (FalseならMLP, TrueならResNet)
+# use_bias: true                # バイアス項の有無
 # use_zero_bias_initialization: true # バイアスを0で初期化
 # use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
 # device: "cuda"                # "cuda" or "cpu"
@@ -20,6 +20,10 @@
 # # ---------------------------------
 # num_train_samples: 10000 # Waterbirdsの最大: 4795
 # num_test_samples: 8000   # Waterbirdsの最大: 5794
+
+# # --- WaterBirds用: 少数派グループの除外 ---
+# # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
+# remove_minority_groups_train: false
 
 # # --- 事前特徴抽出器の設定 ---
 # use_feature_extractor: true
@@ -59,7 +63,7 @@
 
 
 # # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
-# train_correlation: 1.0
+# train_correlation: 0.7 # 1.0
 # train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
 # train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
 # test_correlation: 0.0
@@ -74,17 +78,17 @@
 # # --- MLP (use_skip_connections: false) 用の設定 ---
 # num_hidden_layers: 1       # 全隠れ層の数．1の場合，標準的な two-layer network．
 
-# hidden_dim: 4096
+# hidden_dim: 1024
 
 
 # # --------------------------------
 # # 学習設定
 # # ---------------------------------
-# epochs: 1 # 30
+# epochs: 100 # 30
 # train_batch_size: 64     # ERMの場合のバッチサイズ (IW や DRO では無視する)
-# eval_batch_size:  8000   # 評価時のバッチサイズ
+# eval_batch_size:  512    # 評価時のバッチサイズ
 # optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
-# learning_rate: 0.0 # 0.01
+# learning_rate: 0.01 # 0.01
 # momentum: 0.0
 # fix_final_layer: false  # 最終層の重みを固定
 
@@ -191,8 +195,8 @@
 # # DFR (Deep Feature Reweighting) 設定
 # # ---------------------------------
 # use_dfr: true # True にすると学習後に DFR を実行
-# dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
-# dfr_reg: "l1"  # "l1" or "l2", or "none"
+# dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
+# dfr_reg: "l2"  # "l1" or "l2", or "none"
 # dfr_c_options: [1.0, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
 # dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
@@ -204,7 +208,7 @@
 
 # # --- DFRを適用する層の指定 ---
 # # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
-# # "layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
+# # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"
 
 
@@ -222,12 +226,12 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_dfr"
+experiment_name: "wb_dfr_500update_mse_const1.0_no_mingroup"
 dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
-loss_function: "logistic"          # "logistic" or "mse"
+loss_function: "mse"          # "logistic" or "mse"
 activation_function: "softplus"    # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs'
 initialization_method: "muP"  # "muP" or "NTP"
-use_skip_connections: true    # skip connection (FalseならMLP, TrueならResNet)
+use_skip_connections: false    # skip connection (FalseならMLP, TrueならResNet)
 use_bias: true                # バイアス項の有無
 use_zero_bias_initialization: true # バイアスを0で初期化
 use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
@@ -238,6 +242,10 @@ device: "cuda"                # "cuda" or "cpu"
 # ---------------------------------
 num_train_samples: 4795    # Waterbirdsの最大: 4795
 num_test_samples: 5794     # Waterbirdsの最大: 5794
+
+# --- WaterBirds用: 少数派グループの除外 ---
+# Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
+remove_minority_groups_train: true
 
 # --- 事前特徴抽出器の設定 ---
 use_feature_extractor: true
@@ -292,16 +300,16 @@ num_residual_blocks: 5     # 残差ブロックの数 L (Total Hidden Layers = 1
 # --- MLP (use_skip_connections: false) 用の設定 ---
 num_hidden_layers: 1       # 全隠れ層の数．1の場合，標準的な two-layer network．
 
-hidden_dim: 1024 # 1024
+hidden_dim: 1024  # 1024 2048  4096   8192
 
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 30 # 20 # 10000
+epochs: 500 # 30 # 20 # 10000
 train_batch_size: 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
-eval_batch_size: 5794   # 評価時のバッチサイズ # 5794
+eval_batch_size: 512    # 評価時のバッチサイズ # 5794
 optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
-learning_rate: 0.01
+learning_rate:  0.01 # 0.01 # 0.01
 momentum: 0.0
 fix_final_layer: false  # 最終層の重みを固定
 
@@ -408,8 +416,8 @@ wandb:
 # DFR (Deep Feature Reweighting) 設定
 # ---------------------------------
 use_dfr: true # True にすると学習後に DFR を実行
-dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
-dfr_reg: "l1"  # "l1", "l2", or "none"
+dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
+dfr_reg: "l2"  # "l1", "l2", or "none"
 dfr_c_options: [1.0, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
 dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
@@ -460,6 +468,10 @@ dfr_target_layer: "last_hidden"
 # # ---------------------------------
 # num_train_samples: 9000    # Waterbirdsの最大: 4795．CIFAR10の各クラスの訓練データ数は5000．
 # num_test_samples: 9000     # Waterbirdsの最大: 5794．CIFAR10の各クラスのテストデータ数は1000．
+
+# # --- WaterBirds用: 少数派グループの除外 ---
+# # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
+# remove_minority_groups_train: false
 
 # # --- 事前特徴抽出器の設定 ---
 # use_feature_extractor: true
@@ -642,5 +654,5 @@ dfr_target_layer: "last_hidden"
 
 # # --- DFRを適用する層の指定 ---
 # # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
-# # "layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
+# # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"
