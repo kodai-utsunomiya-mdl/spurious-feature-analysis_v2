@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression, Ridge, Lasso, LinearRegression
 from sklearn.preprocessing import StandardScaler
 from collections import defaultdict
+import scipy.linalg
 import utils
 import analysis
 import warnings
@@ -66,7 +67,7 @@ def get_embeddings(model, X, target_layer_name_config, batch_size=1000, device='
     embeddings = []
     target_layer_name = target_layer_name_config
     
-    # "last_hidden" というキーワードが指定された場合のみ，モデル構造に応じて実際の層名を解決する
+    # "last_hidden" が指定された場合のみ，モデル構造に応じて実際の層名を解決する
     if target_layer_name == "last_hidden":
         if hasattr(model, 'model_type'):
             if model.model_type == 'ResNet':
@@ -117,7 +118,6 @@ def get_embeddings(model, X, target_layer_name_config, batch_size=1000, device='
                         emb = outputs[actual_last_layer]
                         print(f"  [Warning] Calculated target '{target_layer_name}' not found. Using '{actual_last_layer}' instead.")
                     except:
-                        # パース失敗時は辞書順最後
                         emb = outputs[keys[-1]]
                         print(f"  [Warning] Calculated target '{target_layer_name}' not found. Using '{keys[-1]}' instead.")
                 else:
@@ -367,7 +367,7 @@ def train_baseline_model(X, y, loss_type, reg_type, c_options, random_state=42):
     X_tr, y_tr = X[idx_tr], y[idx_tr]
     X_val, y_val = X[idx_val], y[idx_val]
 
-    # 型変換
+    # 型の変換
     if loss_type == 'mse':
         y_tr = y_tr.astype(float); y_val = y_val.astype(float)
         y_full = y.astype(float)
@@ -467,143 +467,182 @@ def _reorder_metrics_for_spurious_task(metrics):
         
     return metrics
 
-def compute_subspace_principal_angles(Z, y_discrete):
+def compute_geometric_metrics(Z, y_discrete, a_discrete):
     """
-    正準角 (Principal Angles) を計算する．
-    バイアス項 (アフィン変換) による分離可能性を考慮するため，
-    特徴行列 Z に定数項を追加し，中心化は行わない．
+    正準角 (Principal Angles) と特徴間のアラインメントを計算する．
     
+    特徴量行列 Z (N, m) とターゲット y, a を受け取り，
+    サンプルサイズ N と特徴次元 m の大小関係に応じて計算手法を選択する．
+    
+    定義:
+      J_N = I - (1/N) 1 1^T (中心化行列)
+      Phi = (Z, 1) (定数項を追加した特徴行列)
+      
+    1. 正準角の余弦 (sigma_2)
+       - 特徴空間 V_Phi とターゲット空間 V_T (T=Y or A) の間の第2正準角の余弦 (変動成分の説明率)．
+       - Case N > m: Phiの直交基底 U_Phi と Tの直交基底 U_T を用いたSVD．
+       - Case N <= m: カーネル K = J_N Phi Phi^T J_N と一般化逆行列 K^dagger を用いた予測ベクトル hat_t と J_N t のコサイン類似度．
+       
+    2. 特徴間のアラインメント (cos gamma_2)
+       - 特徴空間内における，Yの予測成分とAの予測成分の間のコサイン類似度．
+       - Case N > m: 射影行列 P_Phi = U_Phi U_Phi^T を用いて射影・中心化したベクトルのコサイン類似度．
+       - Case N <= m: カーネル法による予測ベクトル hat_y と hat_a のコサイン類似度．
+       
     Args:
-        Z (np.ndarray): 特徴行列 (N, D)
-        y_discrete (np.ndarray): 離散ターゲットラベル (N,)
+        Z (np.ndarray): 特徴行列 (N, m)．
+        y_discrete (np.ndarray): クラスラベル (N,).
+        a_discrete (np.ndarray): スプリアス属性 (N,).
         
     Returns:
-        singular_values (np.ndarray): 正準角の余弦を表す特異値の配列 (降順)
+        metrics (dict): 計算した指標を含む辞書．
     """
-    n_samples, n_features = Z.shape
-    tol = 1e-10 # 特異値のカットオフしきい値
-
-    Z_aug = np.hstack([Z, np.ones((n_samples, 1))])
-    
-    # ターゲットのOne-Hot行列を作成
-    # ターゲット空間にも定数ベクトルが含まれる (One-Hotの和は1) ため，
-    # バイアス項同士の相関 (1.0) が観測される
-    classes = np.unique(y_discrete)
-    n_classes = len(classes)
-    
-    Y_oh = np.zeros((n_samples, n_classes))
-    for i, c in enumerate(classes):
-        Y_oh[y_discrete == c, i] = 1.0
-        
-    # 特徴空間 Z_aug の基底抽出 (SVD)
-    try:
-        # full_matrices=False で (N, K) の U を取得
-        U_z, S_z, _ = np.linalg.svd(Z_aug, full_matrices=False)
-        rank_z = np.sum(S_z > tol)
-        Q_Z = U_z[:, :rank_z] # (N, rank_z)
-    except Exception as e:
-        print(f"  [Error] SVD of Z failed: {e}")
-        return np.array([0.0])
-
-    # ターゲット空間 Y の基底抽出 (SVD)
-    try:
-        U_y, S_y, _ = np.linalg.svd(Y_oh, full_matrices=False)
-        rank_y = np.sum(S_y > tol)
-        Q_Y = U_y[:, :rank_y] # (N, rank_y)
-    except Exception as e:
-        print(f"  [Error] SVD of Y failed: {e}")
-        return np.array([0.0])
-
-    print(f"  True Rank of Feature Space Z (Augmented): {rank_z}")
-    # 2クラス分類の場合，One-Hot表現のランクは2 (線形独立な [1,0] と [0,1])
-    print(f"  True Rank of Target Space (One-Hot): {rank_y} (Should be K)")
-
-    # 4. 正準角の計算 (SVD of Q_Z^T Q_Y)
-    if rank_z == 0 or rank_y == 0:
-        return np.array([0.0])
-
-    M = np.dot(Q_Z.T, Q_Y)
-    
-    try:
-        singular_values = np.linalg.svd(M, compute_uv=False)
-    except Exception as e:
-        print(f"  [Error] Final SVD failed: {e}")
-        return np.array([0.0])
-        
-    return singular_values
-
-def compute_feature_alignment(Z, y_discrete, a_discrete):
-    """
-    特徴空間 Z 内における，ラベル Y の予測成分と属性 A の予測成分の間の
-    幾何学的整合度 (Feature Alignment, cos gamma_2) を計算する．
-    
-    1. Z に定数項を追加してアフィン空間を構成．
-    2. Y, A を Z 空間に射影 (Projection)．
-    3. 射影された成分から定数項を除去 (Centering)．
-    4. 残差成分同士の正準角 (最大特異値) を計算．
-    """
-    n_samples = Z.shape[0]
+    N, m = Z.shape
     tol = 1e-10
-    
-    # 1. Augment Z with constant term
-    Z_aug = np.hstack([Z, np.ones((n_samples, 1))])
-    
-    # Get orthonormal basis of Z_aug: Q_Z
-    try:
-        U_z, S_z, _ = np.linalg.svd(Z_aug, full_matrices=False)
-        rank_z = np.sum(S_z > tol)
-        Q_Z = U_z[:, :rank_z]
-    except Exception as e:
-        print(f"  [Error] SVD of Z failed in alignment: {e}")
-        return 0.0
 
-    # Prepare Targets (One-Hot)
-    classes_y = np.unique(y_discrete)
-    T_Y = np.zeros((n_samples, len(classes_y)))
-    for i, c in enumerate(classes_y):
-        T_Y[y_discrete == c, i] = 1.0
-        
-    classes_a = np.unique(a_discrete)
-    T_A = np.zeros((n_samples, len(classes_a)))
-    for i, c in enumerate(classes_a):
-        T_A[a_discrete == c, i] = 1.0
-        
-    # 2. Project Targets onto Z space
-    Y_proj = Q_Z @ (Q_Z.T @ T_Y)
-    A_proj = Q_Z @ (Q_Z.T @ T_A)
+    # ターゲットベクトル (中心化前)
+    y_vec = y_discrete.astype(float)
+    a_vec = a_discrete.astype(float)
+
+    # ベクトルの中心化
+    # J_N v = v - mean(v)
+    y_cent = y_vec - np.mean(y_vec)
+    a_cent = a_vec - np.mean(a_vec)
     
-    # 3. Centering (Remove constant component)
-    Y_proj_cent = Y_proj - np.mean(Y_proj, axis=0, keepdims=True)
-    A_proj_cent = A_proj - np.mean(A_proj, axis=0, keepdims=True)
+    metrics = {
+        'sigma_2_Y': 0.0,
+        'sigma_2_A': 0.0,
+        'alignment_cos_gamma_2': 0.0
+    }
     
-    # 4. Compute Principal Angles between Centered Projected Subspaces
-    try:
-        U_y, S_y, _ = np.linalg.svd(Y_proj_cent, full_matrices=False)
-        rank_y = np.sum(S_y > tol)
-        if rank_y == 0: return 0.0
-        Q_Y_hat = U_y[:, :rank_y]
+    # 特徴行列 Phi (N, m+1)
+    Phi = np.hstack([Z, np.ones((N, 1))])
+    
+    if N > m + 1:
+        # --- Case 1: N > m (通常のSVD) ---
+
+        # 1. 特徴空間の正規直交基底 U_Phi (N, rank_Phi)
+        try:
+            U_Phi, S_Phi, _ = np.linalg.svd(Phi, full_matrices=False)
+            rank_Phi = np.sum(S_Phi > tol)
+            U_Phi = U_Phi[:, :rank_Phi]
+            
+            # 射影行列 P_Phi = U_Phi U_Phi^T
+            # ターゲット空間 V_Y, V_A の基底
+            # V_Y = span{1, Y}, V_A = span{1, A}
+            # 定数項 1 を含むため，QR分解で正規直交基底を得る
+            def get_subspace_basis(target_vec):
+                M = np.stack([target_vec, np.ones(N)], axis=1) # (N, 2)
+                Q, _ = np.linalg.qr(M)
+                return Q
+            
+            U_Y = get_subspace_basis(y_vec)
+            U_A = get_subspace_basis(a_vec)
+            
+            # --- 正準角 sigma_2 (Subspace Principal Angle) ---
+            # sigma_k = svd(U_Phi^T U_T)
+            # 第1正準角は定数項により常に1．第2正準角 (sigma_2) を取得．
+            
+            def compute_sigma2(U_base, U_target):
+                # U_base^T U_target (rank_Phi, 2)
+                M_int = np.dot(U_base.T, U_target)
+                s_vals = np.linalg.svd(M_int, compute_uv=False)
+                # 降順にソートされている．s_vals[0] approx 1. s_vals[1] が sigma_2.
+                if len(s_vals) >= 2:
+                    return s_vals[1]
+                return 0.0
+            
+            metrics['sigma_2_Y'] = compute_sigma2(U_Phi, U_Y)
+            metrics['sigma_2_A'] = compute_sigma2(U_Phi, U_A)
+            
+            # --- 特徴間のアラインメント ---
+            # 射影: P_Phi t
+            # P_Phi = U_Phi U_Phi^T
+            
+            # P_Phi y
+            proj_y = U_Phi @ (U_Phi.T @ y_vec)
+            # P_Phi a
+            proj_a = U_Phi @ (U_Phi.T @ a_vec)
+            
+            # 中心化 (J_N P_Phi t)
+            proj_y_cent = proj_y - np.mean(proj_y)
+            proj_a_cent = proj_a - np.mean(proj_a)
+            
+            # コサイン類似度
+            norm_y = np.linalg.norm(proj_y_cent)
+            norm_a = np.linalg.norm(proj_a_cent)
+            
+            if norm_y > tol and norm_a > tol:
+                cos_gamma = np.abs(np.dot(proj_y_cent, proj_a_cent)) / (norm_y * norm_a)
+                metrics['alignment_cos_gamma_2'] = cos_gamma
+            else:
+                metrics['alignment_cos_gamma_2'] = 0.0
+
+        except Exception as e:
+            print(f"  [Error] Geometric analysis (N > m) failed: {e}")
+
+    else:
+        # --- Case 2: N <= m (カーネル法) ---
+        # Moore-Penrose一般化逆行列を使用
         
-        U_a, S_a, _ = np.linalg.svd(A_proj_cent, full_matrices=False)
-        rank_a = np.sum(S_a > tol)
-        if rank_a == 0: return 0.0
-        Q_A_hat = U_a[:, :rank_a]
-        
-        M = np.dot(Q_Y_hat.T, Q_A_hat)
-        sing_vals = np.linalg.svd(M, compute_uv=False)
-        
-        alignment_score = np.max(sing_vals)
-        
-    except Exception as e:
-        print(f"  [Error] Alignment calculation failed: {e}")
-        return 0.0
-        
-    return alignment_score
+        try:
+            # 中心化したカーネル行列 K = J_N Phi Phi^T J_N
+            # Phi Phi^T
+            G = np.dot(Phi, Phi.T) # (N, N)
+            
+            # J_N G J_N
+            # J_N は定数ベクトルの成分を除去する (行平均・列平均を引くのと等価)
+            # Centering matrix J_N = I - 11^T/N
+            # K = J G J
+            
+            # 行平均を引く
+            G_centered_rows = G - np.mean(G, axis=0, keepdims=True)
+            # 列平均を引く
+            K = G_centered_rows - np.mean(G_centered_rows, axis=1, keepdims=True)
+            
+            # Kの一般化逆行列 K_dagger
+            K_dagger = scipy.linalg.pinv(K)
+            
+            # 予測ベクトル hat_t = K K_dagger J_N t
+            # J_N t は中心化されたターゲット (y_cent, a_cent)
+            
+            hat_y = K @ (K_dagger @ y_cent)
+            hat_a = K @ (K_dagger @ a_cent)
+            
+            # --- 正準角 sigma_2 ---
+            # sigma_2 = | (J_N t)^T hat_t | / ( ||J_N t|| ||hat_t|| )
+            
+            def compute_kernel_sigma2(t_cent, t_hat):
+                numer = np.abs(np.dot(t_cent, t_hat))
+                denom = np.linalg.norm(t_cent) * np.linalg.norm(t_hat)
+                if denom > tol:
+                    return numer / denom
+                return 0.0
+            
+            metrics['sigma_2_Y'] = compute_kernel_sigma2(y_cent, hat_y)
+            metrics['sigma_2_A'] = compute_kernel_sigma2(a_cent, hat_a)
+            
+            # --- 特徴間のアラインメント ---
+            # cos gamma_2 = | hat_y^T hat_a | / ( ||hat_y|| ||hat_a|| )
+            
+            norm_hat_y = np.linalg.norm(hat_y)
+            norm_hat_a = np.linalg.norm(hat_a)
+            
+            if norm_hat_y > tol and norm_hat_a > tol:
+                cos_gamma = np.abs(np.dot(hat_y, hat_a)) / (norm_hat_y * norm_hat_a)
+                metrics['alignment_cos_gamma_2'] = cos_gamma
+            else:
+                metrics['alignment_cos_gamma_2'] = 0.0
+                
+        except Exception as e:
+            print(f"  [Error] Geometric analysis (N <= m) failed: {e}")
+
+    return metrics
 
 
 def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, a_test, device, loss_function_name, X_val=None, y_val=None, a_val=None):
     """
     DFRの実行プロセス全体
-    X_val, y_val, a_val は main.py で事前に分割された Held-out Validation データが渡されることを前提とする
+    X_val, y_val, a_val は main.py で事前に分割された Held-out Validation データが渡される
     """
     print("\n" + "="*30)
     print(" Running Deep Feature Reweighting (DFR)")
@@ -616,7 +655,6 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
 
     # --- 0. DFR適用前 (ERM) の結果を計算 (比較用) ---
     print("Evaluating Original ERM Model (Before DFR)...")
-    # 特徴量ではなく元の入力(X_test)を使用
     erm_test_metrics = utils.evaluate_model(
         model, X_test, y_test, a_test, 
         device, loss_function_name, eval_bs
@@ -625,7 +663,6 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     for i, loss in enumerate(erm_test_metrics['group_losses']):
         acc = erm_test_metrics['group_accs'][i]
         print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
-
 
     # --- 1. 特徴抽出 ---
     print("\nExtracting embeddings from the trained model...")
@@ -743,40 +780,40 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
 
     # --- Principal Angles Analysis ---
     print("\n" + "-"*40)
-    print(" Analysis: Principal Angles (Subspace Geometry)")
+    print(" Analysis: Principal Angles (Geometric Analysis)")
     print("-" * 40)
     
-    # Validation Set Analysis
-    print(" [Validation Set] Computing Principal Angles...")
-    print("  ... for Label Space Y")
-    sing_vals_y = compute_subspace_principal_angles(X_dfr_source, y_dfr_source)
-    print(f"  Singular Values (Cosines) w.r.t Y: {sing_vals_y}")
-    
-    print("  ... for Spurious Space A")
-    sing_vals_a = compute_subspace_principal_angles(X_dfr_source, a_dfr_source)
-    print(f"  Singular Values (Cosines) w.r.t A: {sing_vals_a}")
-    
-    # Feature Alignment (Y vs A) in Validation Set
-    align_val = compute_feature_alignment(X_dfr_source, y_dfr_source, a_dfr_source)
-    print(f"  Feature Alignment (Y vs A) cos gamma_2: {align_val:.6f}")
-
-    # Test Set Analysis
-    print("\n [Test Set] Computing Principal Angles (Checking for saturation/generalization)...")
+    # バランスされたテストデータセットの作成
+    # テストデータ (test_embeddings, y_test, a_test) から，グループサイズを均衡化したデータセットを作成する
+    print(" [Analysis] Creating Balanced Test Subset for Geometric Analysis...")
     y_test_np = y_test.cpu().numpy()
     a_test_np = a_test.cpu().numpy()
-
-    print("  ... for Label Space Y")
-    sing_vals_y_test = compute_subspace_principal_angles(test_embeddings, y_test_np)
-    print(f"  Singular Values (Cosines) w.r.t Y: {sing_vals_y_test}")
     
-    print("  ... for Spurious Space A")
-    sing_vals_a_test = compute_subspace_principal_angles(test_embeddings, a_test_np)
-    print(f"  Singular Values (Cosines) w.r.t A: {sing_vals_a_test}")
+    # balance_indicesを用いてインデックスを取得
+    bal_test_idx = balance_indices(y_test_np, a_test_np, random_state=12345)
     
-    # Feature Alignment (Y vs A) in Test Set
-    align_test = compute_feature_alignment(test_embeddings, y_test_np, a_test_np)
-    print(f"  Feature Alignment (Y vs A) cos gamma_2: {align_test:.6f}")
+    X_test_bal = test_embeddings[bal_test_idx]
+    y_test_bal = y_test_np[bal_test_idx]
+    a_test_bal = a_test_np[bal_test_idx]
+    
+    print(f"  Balanced Test Subset Size: {len(X_test_bal)} (from {len(test_embeddings)})")
+    
+    # スケーリング (Trainで学習したScalerを適用)
+    # print(" [Analysis] Scaling Balanced Test Subset (using Train scaler)...")
+    # X_test_bal_scaled = scaler.transform(X_test_bal)
+    
+    # 指標の計算
+    print(" [Analysis] Computing Geometric Metrics on Balanced Test Set...")
+    geo_metrics = compute_geometric_metrics(X_test_bal, y_test_bal, a_test_bal)
+    
+    sigma_2_Y = geo_metrics['sigma_2_Y']
+    sigma_2_A = geo_metrics['sigma_2_A']
+    cos_gamma_2 = geo_metrics['alignment_cos_gamma_2']
 
+    print(f"  Result (Balanced Test Set):")
+    print(f"    sigma_2(V_Y) (Explanation of Y): {sigma_2_Y:.6f}")
+    print(f"    sigma_2(V_A) (Explanation of A): {sigma_2_A:.6f}")
+    print(f"    cos gamma_2 (Feature Alignment Y vs A): {cos_gamma_2:.6f}")
 
     # --- 4. Baseline Regressions (ERM on Features) ---
     print("\n--- Baseline Regressions on Training Features (Imbalanced) ---")
@@ -821,4 +858,5 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
             acc = base_test_metrics['group_accs'][i]
             print(f"  Group {i}: Loss={loss:.4f}, Acc={acc:.4f}")
 
-    return dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, align_val, align_test
+    return dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, \
+           sigma_2_Y, sigma_2_A, cos_gamma_2

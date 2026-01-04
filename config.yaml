@@ -165,10 +165,10 @@
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
 
-# # 特異値解析の設定
+# # 特異値の解析の設定
 # analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
+# singular_values_num_samples: 2000 # 特異値の計算に使用するサンプルサイズ
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -197,8 +197,8 @@
 # use_dfr: true # True にすると学習後に DFR を実行
 # dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l2"  # "l1" or "l2", or "none"
-# dfr_c_options: [1.0, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
-# dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+# dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
+# dfr_num_retrains: 50 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # # --- DFR用 Validationデータの設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
@@ -226,7 +226,7 @@
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "wb_dfr_500update_mse_const1.0_no_mingroup"
+experiment_name: "wb_dfr_v2_100update"
 dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "mse"          # "logistic" or "mse"
 activation_function: "softplus"    # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs'
@@ -305,7 +305,7 @@ hidden_dim: 1024  # 1024 2048  4096   8192
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 500 # 30 # 20 # 10000
+epochs: 100 # 30 # 20 # 10000
 train_batch_size: 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
 eval_batch_size: 512    # 評価時のバッチサイズ # 5794
 optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
@@ -386,10 +386,10 @@ umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
 umap_n_neighbors: 15
 umap_min_dist: 0.1
 
-# 特異値解析の設定
+# 特異値の解析の設定
 analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
+singular_values_num_samples: 2000 # 特異値の計算に使用するサンプルサイズ
 
 # t-SNEの設定
 tsne_perplexity: 30.0
@@ -418,8 +418,8 @@ wandb:
 use_dfr: true # True にすると学習後に DFR を実行
 dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
 dfr_reg: "l2"  # "l1", "l2", or "none"
-dfr_c_options: [1.0, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
-dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
+dfr_num_retrains: 30 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # --- DFR用 Validationデータの設定 ---
 # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
@@ -611,10 +611,10 @@ dfr_target_layer: "last_hidden"
 # umap_n_neighbors: 15
 # umap_min_dist: 0.1
 
-# # 特異値解析の設定
+# # 特異値の解析の設定
 # analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
 # singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値計算に使用するサンプルサイズ
+# singular_values_num_samples: 2000 # 特異値の計算に使用するサンプルサイズ
 
 # # t-SNEの設定
 # tsne_perplexity: 30.0
@@ -643,8 +643,8 @@ dfr_target_layer: "last_hidden"
 # use_dfr: true # True にすると学習後に DFR を実行
 # dfr_loss_type: "logistic" # "logistic" or "mse" (mseの場合はl2が良い)
 # dfr_reg: "l1"  # "l1", "l2", or "none"
-# dfr_c_options: [1.0, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.03, 0.01] # チューニングする正則化の強度の逆数
-# dfr_num_retrains: 20 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+# dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
+# dfr_num_retrains: 50 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # # --- DFR用 Validationデータの設定 ---
 # # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)

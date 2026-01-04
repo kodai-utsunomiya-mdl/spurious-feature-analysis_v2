@@ -596,8 +596,7 @@ def main(config_path='config.yaml'):
         try:
             if X_val_dfr is not None:
                 dfr_train_metrics, dfr_test_metrics, baseline_results, dfr_spur_train_metrics, dfr_spur_test_metrics, \
-                sing_vals_y, sing_vals_a, sing_vals_y_test, sing_vals_a_test, \
-                align_val, align_test = dfr.run_dfr_procedure(
+                sigma_2_Y, sigma_2_A, cos_gamma_2 = dfr.run_dfr_procedure(
                     config, model, 
                     X_train, y_train, a_train, 
                     X_test, y_test, a_test, 
@@ -655,27 +654,10 @@ def main(config_path='config.yaml'):
                     for k, v in dfr_test_metrics.items():
                         if 'E[f(x)]' in k or 'Std[f(x)]' in k: dfr_log_metrics[f'dfr_test_{k}'] = v
 
-                    # --- Analysis Metrics (Principal Angles) - Validation ---
-                    if len(sing_vals_y) > 0:
-                        dfr_log_metrics['dfr_val_principal_angles_Y_max'] = np.max(sing_vals_y)
-                        dfr_log_metrics['dfr_val_principal_angles_Y_mean'] = np.mean(sing_vals_y)
-                    
-                    if len(sing_vals_a) > 0:
-                        dfr_log_metrics['dfr_val_principal_angles_A_max'] = np.max(sing_vals_a)
-                        dfr_log_metrics['dfr_val_principal_angles_A_mean'] = np.mean(sing_vals_a)
-                        
-                    dfr_log_metrics['dfr_val_feature_alignment_Y_vs_A'] = align_val
-
-                    # --- Analysis Metrics (Principal Angles) - Test ---
-                    if len(sing_vals_y_test) > 0:
-                        dfr_log_metrics['dfr_test_principal_angles_Y_max'] = np.max(sing_vals_y_test)
-                        dfr_log_metrics['dfr_test_principal_angles_Y_mean'] = np.mean(sing_vals_y_test)
-                    
-                    if len(sing_vals_a_test) > 0:
-                        dfr_log_metrics['dfr_test_principal_angles_A_max'] = np.max(sing_vals_a_test)
-                        dfr_log_metrics['dfr_test_principal_angles_A_mean'] = np.mean(sing_vals_a_test)
-                        
-                    dfr_log_metrics['dfr_test_feature_alignment_Y_vs_A'] = align_test
+                    # --- Analysis Metrics (Geometric Metrics on Balanced Test Set) ---
+                    dfr_log_metrics['dfr_test_sigma_2_Y'] = sigma_2_Y
+                    dfr_log_metrics['dfr_test_sigma_2_A'] = sigma_2_A
+                    dfr_log_metrics['dfr_test_alignment_cos_gamma_2'] = cos_gamma_2
 
                     # --- Baseline Metrics (Baseline regressions) ---
                     for base_name, base_metrics in baseline_results.items():
@@ -714,16 +696,11 @@ def main(config_path='config.yaml'):
                          f.write(f"  Group {i}: Loss={dfr_spur_test_metrics['group_losses'][i]:.4f}, Acc={dfr_spur_test_metrics['group_accs'][i]:.4f}\n")
                     
                     f.write("\n=========================================\n")
-                    f.write(f"[Analysis: Principal Angles (Subspace Geometry)]\n")
-                    f.write(f"--- On Validation Set (Small N) ---\n")
-                    f.write(f"Singular Values w.r.t Y (Label): {sing_vals_y}\n")
-                    f.write(f"Singular Values w.r.t A (Spurious): {sing_vals_a}\n")
-                    f.write(f"Feature Alignment (Y vs A) cos gamma_2: {align_val:.6f}\n")
-                    
-                    f.write(f"\n--- On Test Set (Large N) ---\n")
-                    f.write(f"Singular Values w.r.t Y (Label): {sing_vals_y_test}\n")
-                    f.write(f"Singular Values w.r.t A (Spurious): {sing_vals_a_test}\n")
-                    f.write(f"Feature Alignment (Y vs A) cos gamma_2: {align_test:.6f}\n")
+                    f.write(f"[Analysis: Geometric Metrics]\n")
+                    f.write(f"--- On Balanced Test Subset ---\n")
+                    f.write(f"sigma_2(V_Y) (Explanation of Y): {sigma_2_Y:.6f}\n")
+                    f.write(f"sigma_2(V_A) (Explanation of A): {sigma_2_A:.6f}\n")
+                    f.write(f"cos gamma_2 (Feature Alignment Y vs A): {cos_gamma_2:.6f}\n")
 
                     f.write("\n=========================================\n")
                     f.write("[Baselines & Comparisons (Main Task)]\n")
