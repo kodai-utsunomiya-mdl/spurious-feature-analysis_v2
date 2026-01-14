@@ -4,6 +4,34 @@ import torch
 import numpy as np
 from utils import get_loss_function
 
+def mixup_data(x, y, alpha=1.0, device='cuda'):
+    '''
+    Mixup data augmentation
+    x: input tensor
+    y: target tensor
+    alpha: mixup parameter (Beta distribution)
+    '''
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size).to(device)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+def mixup_criterion(scores, y_a, y_b, lam, loss_function_name):
+    '''
+    Mixup loss calculation
+    '''
+    loss_a = get_loss_function(scores, y_a, loss_function_name)
+    loss_b = get_loss_function(scores, y_b, loss_function_name)
+    return lam * loss_a + (1 - lam) * loss_b
+
+
 def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, num_samples, device, kernel_reg_weights=None, cosine_reg_weights=None):
     """
     指定された条件に基づいて正則化項 (カーネル値またはコサイン類似度) を計算する．
@@ -106,6 +134,63 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
                 
     return total_reg_loss
 
+def compute_decov_loss(features):
+    """
+    DeCov Loss: 特徴量の共分散行列の非対角成分の2乗和を計算する
+    L_DeCov = 0.5 * (||C||_F^2 - ||diag(C)||_2^2)
+    Args:
+        features: 特徴量テンソル (Batch, Dim)
+    Returns:
+        loss: DeCov損失 (scalar)
+    """
+    # バッチサイズ N, 特徴次元 d
+    N, d = features.shape
+    
+    # バッチサイズが1以下の場合は計算不可
+    if N <= 1:
+        return torch.tensor(0.0, device=features.device)
+    
+    # 平均を引く (Centering)
+    features_centered = features - features.mean(dim=0, keepdim=True)
+    
+    # 共分散行列 C = (1 / (N - 1)) * X^T X
+    cov = (1.0 / (N - 1)) * torch.matmul(features_centered.T, features_centered)
+
+    # 非対角成分のノルムの2乗: ||C||_F^2 - ||diag(C)||_2^2
+    cov_fro_sq = torch.sum(cov**2)
+    cov_diag_sq = torch.sum(torch.diag(cov)**2)
+    
+    # Loss definition from "Reducing Overfitting in Deep Networks by Decorrelating Representations"
+    loss = 0.5 * (cov_fro_sq - cov_diag_sq)
+    
+    return loss
+
+def get_features_from_output(outputs, target_layer_name):
+    """
+    モデルの出力辞書から指定された層の特徴量を取り出すヘルパー関数
+    """
+    if target_layer_name in outputs:
+        return outputs[target_layer_name]
+    elif target_layer_name == "last_hidden":
+        # 'layer_X' の形式のキーを探し，最大のインデックスを持つものを返す
+        keys = [k for k in outputs.keys() if k.startswith('layer_')]
+        if not keys:
+            return None
+        # インデックスでソート
+        max_idx = -1
+        target_key = None
+        for k in keys:
+            try:
+                idx = int(k.split('_')[1])
+                if idx > max_idx:
+                    max_idx = idx
+                    target_key = k
+            except:
+                continue
+        if target_key:
+            return outputs[target_key]
+    return None
+
 
 def train_epoch(
     config, 
@@ -129,6 +214,10 @@ def train_epoch(
     GroupDROの場合，更新された dro_q_weights を返す．
     """
     model.train()
+
+    # --- Mixup設定の読み込み ---
+    use_mixup = config.get('use_mixup', False)
+    mixup_alpha = config.get('mixup_alpha', 0.4)
 
     # --- 正則化スケジューリング (減衰係数の計算) ---
     # config.yaml から設定を読み込む
@@ -157,9 +246,13 @@ def train_epoch(
 
     # --- 正則化の設定の読み込みと重みの適用 ---
     # 係数が 0 なら正則化の計算自体をスキップするためにフラグを落とす
-    should_apply_reg = False
+    should_apply_grad_reg = False
     kernel_reg_weights = None
     cosine_reg_weights = None
+    
+    # DeCovの設定
+    use_decov = config.get('use_decov_regularization', False)
+    decov_weight = config.get('decov_reg_weight', 0.1)
     
     if reg_weight_factor > 0:
         # 正則化の有効・無効設定を読み込み
@@ -188,10 +281,19 @@ def train_epoch(
             if not any(w != 0 for w in cosine_reg_weights.values()):
                 cosine_reg_weights = None
 
-        should_apply_reg = (kernel_reg_weights is not None) or (cosine_reg_weights is not None)
+        should_apply_grad_reg = (kernel_reg_weights is not None) or (cosine_reg_weights is not None)
+        
+        # DeCovの重み減衰
+        if use_decov:
+            decov_weight *= reg_weight_factor
+    else:
+        use_decov = False
 
     # jacobian_num_samples を config から取得
     jac_num_samples = config.get('jacobian_num_samples', 100)
+    
+    # DFRのターゲット層 (DeCovを適用する層)
+    dfr_target_layer = config.get('dfr_target_layer', 'last_hidden')
 
     # --- 学習ステップの分岐 ---
     if debias_method == 'IW_uniform':
@@ -209,9 +311,17 @@ def train_epoch(
                 continue
 
             # 勾配計算
-            scores_g, _ = model(X_g)
+            scores_g, outputs_g = model(X_g)
             # utils からインポートした関数を呼び出す (reduction='mean' がデフォルト)
             loss_g = get_loss_function(scores_g, y_g, loss_function_name)
+            
+            # --- DeCov正則化 ---
+            if use_decov:
+                features_g = get_features_from_output(outputs_g, dfr_target_layer)
+                if features_g is not None:
+                    decov_loss = compute_decov_loss(features_g)
+                    loss_g = loss_g + decov_weight * decov_loss
+            
             loss_g.backward()
 
             # 勾配をリストとして保存 (cloneしないと上書きされる)
@@ -237,8 +347,8 @@ def train_epoch(
                 param.grad = debiased_grad
                 param_idx += 1
         
-        # --- 正則化の適用 ---
-        if should_apply_reg:
+        # --- 勾配正則化の適用 ---
+        if should_apply_grad_reg:
             reg_loss = compute_regularization_loss(
                 model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
                 kernel_reg_weights, cosine_reg_weights
@@ -265,11 +375,18 @@ def train_epoch(
                 continue
 
             # 勾配計算
-            scores_g, _ = model(X_g)
+            scores_g, outputs_g = model(X_g)
             # utils からインポートした関数を呼び出す (reduction='mean' がデフォルト)
             loss_g = get_loss_function(scores_g, y_g, loss_function_name)
             
             group_losses_tensor[i] = loss_g.detach() # 損失を保存
+            
+            # --- DeCov正則化 ---
+            if use_decov:
+                features_g = get_features_from_output(outputs_g, dfr_target_layer)
+                if features_g is not None:
+                    decov_loss = compute_decov_loss(features_g)
+                    loss_g = loss_g + decov_weight * decov_loss
             
             loss_g.backward()
 
@@ -305,8 +422,8 @@ def train_epoch(
                 param.grad = debiased_grad
                 param_idx += 1
 
-        # --- 正則化の適用 ---
-        if should_apply_reg:
+        # --- 勾配正則化の適用 ---
+        if should_apply_grad_reg:
             reg_loss = compute_regularization_loss(
                 model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
                 kernel_reg_weights, cosine_reg_weights
@@ -321,11 +438,26 @@ def train_epoch(
         for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
-            scores, _ = model(X_batch)
-            loss = get_loss_function(scores, y_batch, loss_function_name)
+
+            if use_mixup:
+                # --- Mixup Training ---
+                X_mixed, y_a, y_b, lam = mixup_data(X_batch, y_batch, alpha=mixup_alpha, device=device)
+                scores, outputs = model(X_mixed)
+                loss = mixup_criterion(scores, y_a, y_b, lam, loss_function_name)
+            else:
+                # --- Standard Training ---
+                scores, outputs = model(X_batch)
+                loss = get_loss_function(scores, y_batch, loss_function_name)
             
-            # --- 正則化の適用 ---
-            if should_apply_reg:
+            # --- DeCov正則化 ---
+            if use_decov:
+                features = get_features_from_output(outputs, dfr_target_layer)
+                if features is not None:
+                    decov_loss = compute_decov_loss(features)
+                    loss = loss + decov_weight * decov_loss
+            
+            # --- 勾配正則化の適用 ---
+            if should_apply_grad_reg:
                 reg_loss = compute_regularization_loss(
                     model, X_train, y_train, a_train, group_keys, jac_num_samples, device, 
                     kernel_reg_weights, cosine_reg_weights

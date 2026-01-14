@@ -384,7 +384,7 @@ def main(config_path='config.yaml'):
 
     # オプティマイザの作成
     if config['optimizer'] == 'Adam':
-        optimizer = optim.AdamW(optimizer_params_list, lr=config['learning_rate'])
+        optimizer = optim.AdamW(optimizer_params_list, lr=config['learning_rate'], weight_decay=0.0) # 0.01
     else:
         # SGD
         optimizer = optim.SGD(optimizer_params_list, lr=config['learning_rate'], momentum=config['momentum'])
