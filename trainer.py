@@ -134,12 +134,21 @@ def compute_regularization_loss(model, X_train, y_train, a_train, group_keys, nu
                 
     return total_reg_loss
 
-def compute_decov_loss(features):
+def compute_decov_loss(features, target_identity=False):
     """
     DeCov Loss: 特徴量の共分散行列の非対角成分の2乗和を計算する
-    L_DeCov = 0.5 * (||C||_F^2 - ||diag(C)||_2^2)
+    
+    target_identity=False (Default):
+      L_DeCov = 0.5 * (||C||_F^2 - ||diag(C)||_2^2)
+      (非対角成分のみを0に近づける)
+      
+    target_identity=True:
+      L_DeCov = 0.5 * ||C - I||_F^2
+      (共分散行列全体を単位行列に近づける = 非対角成分を0，対角成分を1に近づける)
+
     Args:
         features: 特徴量テンソル (Batch, Dim)
+        target_identity: 対角成分も1に近づけるかどうか
     Returns:
         loss: DeCov損失 (scalar)
     """
@@ -156,12 +165,18 @@ def compute_decov_loss(features):
     # 共分散行列 C = (1 / (N - 1)) * X^T X
     cov = (1.0 / (N - 1)) * torch.matmul(features_centered.T, features_centered)
 
-    # 非対角成分のノルムの2乗: ||C||_F^2 - ||diag(C)||_2^2
-    cov_fro_sq = torch.sum(cov**2)
-    cov_diag_sq = torch.sum(torch.diag(cov)**2)
-    
-    # Loss definition from "Reducing Overfitting in Deep Networks by Decorrelating Representations"
-    loss = 0.5 * (cov_fro_sq - cov_diag_sq)
+    if target_identity:
+        # 共分散行列全体を単位行列に近づける
+        # L = 0.5 * || C - I ||_F^2 = 0.5 * sum((C - I)^2)
+        I = torch.eye(d, device=features.device)
+        loss = 0.5 * torch.sum((cov - I) ** 2)
+    else:
+        # 非対角成分のノルムの2乗: ||C||_F^2 - ||diag(C)||_2^2
+        cov_fro_sq = torch.sum(cov**2)
+        cov_diag_sq = torch.sum(torch.diag(cov)**2)
+        
+        # Loss definition from "Reducing Overfitting in Deep Networks by Decorrelating Representations"
+        loss = 0.5 * (cov_fro_sq - cov_diag_sq)
     
     return loss
 
@@ -253,6 +268,8 @@ def train_epoch(
     # DeCovの設定
     use_decov = config.get('use_decov_regularization', False)
     decov_weight = config.get('decov_reg_weight', 0.1)
+    # 対角成分も単位行列に近づけるかどうかのフラグ
+    decov_target_identity = config.get('decov_target_identity', False)
     
     if reg_weight_factor > 0:
         # 正則化の有効・無効設定を読み込み
@@ -319,7 +336,8 @@ def train_epoch(
             if use_decov:
                 features_g = get_features_from_output(outputs_g, dfr_target_layer)
                 if features_g is not None:
-                    decov_loss = compute_decov_loss(features_g)
+                    # [変更] target_identity オプションを渡す
+                    decov_loss = compute_decov_loss(features_g, target_identity=decov_target_identity)
                     loss_g = loss_g + decov_weight * decov_loss
             
             loss_g.backward()
@@ -385,7 +403,8 @@ def train_epoch(
             if use_decov:
                 features_g = get_features_from_output(outputs_g, dfr_target_layer)
                 if features_g is not None:
-                    decov_loss = compute_decov_loss(features_g)
+                    # [変更] target_identity オプションを渡す
+                    decov_loss = compute_decov_loss(features_g, target_identity=decov_target_identity)
                     loss_g = loss_g + decov_weight * decov_loss
             
             loss_g.backward()
@@ -453,7 +472,8 @@ def train_epoch(
             if use_decov:
                 features = get_features_from_output(outputs, dfr_target_layer)
                 if features is not None:
-                    decov_loss = compute_decov_loss(features)
+                    # [変更] target_identity オプションを渡す
+                    decov_loss = compute_decov_loss(features, target_identity=decov_target_identity)
                     loss = loss + decov_weight * decov_loss
             
             # --- 勾配正則化の適用 ---

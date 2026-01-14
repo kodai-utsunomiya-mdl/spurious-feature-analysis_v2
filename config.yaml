@@ -1,250 +1,15 @@
-# # sp/config.yaml
-# #### WaterBirds
-
-# # ---------------------------------
-# # 実験の基本設定
-# # ---------------------------------
-# experiment_name: "test_wb_dfr_100update_identity"
-# dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
-# loss_function: "mse"          # "logistic" or "mse"
-# activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs', 'elu', 'sigmoid', 'logsigmoid', 'exp'
-# initialization_method: "muP"  # "muP" or "NTP"
-# use_skip_connections: false    # skip connection (FalseならMLP, TrueならResNet)
-# use_bias: true                # バイアス項の有無
-# use_zero_bias_initialization: true # バイアスを0で初期化
-# use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
-# device: "cuda"                # "cuda" or "cpu"
-
-# # ---------------------------------
-# # データセット設定
-# # ---------------------------------
-# num_train_samples: 4795    # Waterbirdsの最大: 4795
-# num_test_samples: 5794     # Waterbirdsの最大: 5794
-
-# # --- WaterBirds用: 少数派グループの除外 ---
-# # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
-# remove_minority_groups_train: true
-
-# # --- 事前特徴抽出器の設定 ---
-# use_feature_extractor: true
-
-# # --- 特徴抽出器のモデル選択 ---
-# # 'ResNet18', 'ResNet50', 'ViT_B_16'
-# # DINOv2系: 'DINOv2_ViT_S_14' (384-dim), 'DINOv2_ViT_B_14' (768-dim),
-# #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
-# feature_extractor_model_name: "DINOv2_ViT_G_14" # "DINOv2_ViT_G_14" 
-
-# # --- ResNet系 中間層の特徴マップの設定 ---
-# # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
-# # 'avgpool': avgpool 後のベクトル (デフォルト)
-# # 'layer3': ResNetの layer3 出力
-# # 'layer4': ResNetの layer4 出力
-# feature_extractor_resnet_intermediate_layer: "avgpool" 
-
-# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合のAdaptive Poolingサイズ
-# # 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
-# feature_extractor_resnet_pooling_output_size: 2 
-
-# # --- ViT/DINOv2系 中間層の設定 ---
-# # [ViT/DINOv2系でのみ有効]
-# # 抽出するブロックのインデックス (0 から N-1). 
-# # -1 は最後のブロック, -2 は最後から2番目, ...
-# # (ViT_B_16: 12 blocks (0-11))
-# # (DINOv2_ViT_S_14, DINOv2_ViT_B_14: 12 blocks (0-11))
-# # (DINOv2_ViT_L_14: 24 blocks (0-23))
-# # (DINOv2_ViT_G_14: 40 blocks (0-39))
-# feature_extractor_vit_target_block: -1 # デフォルトは最後のブロック
-
-# # 'target_block' からの特徴をどう集約するか
-# # 'cls_token': [CLS] トークンのみを使用 (デフォルト)
-# # 'mean_pool_patch': パッチトークンのみを平均プーリング
-# # 'mean_pool_all': [CLS] と パッチトークンの両方を平均プーリング
-# feature_extractor_vit_aggregation_mode: "mean_pool_all" 
-
-
-# # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
-# train_correlation: 0.8
-# train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
-# train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
-# test_correlation: 0.0
-# test_label_marginal: 0.0        # E[Y] (テストセット)
-# test_attribute_marginal: 0.0    # E[A] (テストセット)
-
-# # ---------------------------------
-# # モデル設定
-# # ---------------------------------
-# # --- ResNet (use_skip_connections: true) 用の設定 ---
-# num_residual_blocks: 5     # 残差ブロックの数 L (Total Hidden Layers = 1 + L)
-# # --- MLP (use_skip_connections: false) 用の設定 ---
-# num_hidden_layers: 1       # 全隠れ層の数．1の場合，標準的な two-layer network．
-
-# hidden_dim: 1024  # 1024 2048  4096   8192
-
-# # --------------------------------
-# # 学習設定
-# # ---------------------------------
-# epochs: 300 # 30 # 20 # 10000
-# train_batch_size: 64 # 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
-# eval_batch_size: 512    # 評価時のバッチサイズ # 5794
-# optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
-# learning_rate: 0.01 # 0.01 # 0.01 # 0.01
-# momentum: 0.0
-# fix_final_layer: false  # 最終層の重みを固定
-
-# # --- debias手法の選択 ---
-# debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
-
-# # --- Mixup設定 (debias_method: "None" の時のみ有効) ---
-# use_mixup: false       # Mixupを使用するかどうか
-# mixup_alpha: 1.0      # Beta分布のパラメータ (通常 0.2 ~ 1.0)
-
-# # --- Group DRO Settings ---
-# dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
-
-# # --- カーネルの正則化の設定 ---
-# use_kernel_regularization: false
-
-# # 3項それぞれの正則化の強度を個別に設定 (カーネル値)
-# kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
-# kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
-# kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
-
-# # --- DeCov (Decorrelation Loss) の設定 ---
-# use_decov_regularization: true
-# decov_reg_weight: 0.00000001 # DeCovの正則化強度
-
-
-
-
-# # --- コサイン類似度の正則化 ---
-# use_cosine_regularization: false
-
-# # 3項それぞれの正則化の強度を個別に設定 (コサイン類似度)
-# cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
-# cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
-# cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
-
-# # --- 正則化のスケジューリング ---
-# # 指定したエポック以降は正則化を無効化する (null または指定なしの場合は常に有効)
-# regularization_end_epoch: 20000
-# # regularization_decay_start_epoch: 減衰を開始するエポック (オプション)
-# regularization_decay_start_epoch: 300
-
-
-# # ------------------------------------------
-# # 解析・可視化の設定
-# # ------------------------------------------
-# # 各種分析の実行エポック (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
-# gap_dynamics_factors_analysis_epochs:
-# jacobian_norm_analysis_epochs:
-# static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
-# umap_analysis_epochs: [0, 10, 20, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
-
-# # 性能差のダイナミクスの要因の分析の設定
-# gap_dynamics_factors:
-#   # 分析対象とするグループペア [g1, g2] のリスト
-#   group_pairs:
-#     - [[-1, 1], [-1, -1]]  # 少数派・多数派
-#     - [[1, -1], [-1, -1]]
-#     - [[ 1,  -1], [ 1, 1]]
-
-# # 静的・動的な分解の分析の設定
-# static_dynamic_decomposition:
-#   # 分析対象とするグループペア [g_min, g_maj] のリスト
-#   # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
-#   group_pairs:
-#     # y=-1 のペア (min=(-1,1), maj=(-1,-1))
-#     - [[-1, 1], [-1, -1]]
-#     # y=+1 のペア (min=(1,-1), maj=(1,1))
-#     - [[1, -1], [1, 1]]
-
-# # 解析対象のデータセット ('train', 'test', 'both')
-# analysis_target: 'both'
-# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
-# # グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
-# gradient_gram_num_samples: null 
-# show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
-
-# # 可視化アルゴリズムの選択
-# visualization_method: "umap"  # "umap" または "tsne" を指定
-
-# # UMAPの設定
-# analyze_umap_representation: true
-# umap_analysis_target: 'both' # 'train', 'test', 'both'
-# umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
-# umap_n_neighbors: 15
-# umap_min_dist: 0.1
-
-# # 特異値の解析の設定
-# analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
-# singular_values_analysis_target: 'both' # 'train', 'test', 'both'
-# singular_values_num_samples: 2000 # 特異値の計算に使用するサンプルサイズ
-
-# # t-SNEの設定
-# tsne_perplexity: 30.0
-# tsne_learning_rate: 200.0
-
-# # ---------------------------------
-# # 解析の有効/無効フラグ
-# # ---------------------------------
-# analyze_jacobian_norm: false
-# analyze_gradient_basis: false
-# analyze_gap_dynamics_factors: false
-# analyze_static_dynamic_decomposition: false
-# analyze_model_output_expectation: true
-
-# # ---------------------------------
-# # wandbの設定
-# # ---------------------------------
-# wandb:
-#   enable: true
-#   project: "sp_exp_test"
-#   entity: "mdl-tsukuba"
-
-# # ---------------------------------
-# # DFR (Deep Feature Reweighting) 設定
-# # ---------------------------------
-# use_dfr: true # True にすると学習後に DFR を実行
-# dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
-# dfr_reg: "l2"  # "l1", "l2", or "none"
-# dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
-# dfr_num_retrains: 30 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
-
-# # --- DFR用 Validationデータの設定 ---
-# # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
-# # WaterBirdsの場合は公式Validation Setから，
-# # Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリング
-# dfr_val_samples_per_group: 133 # 10 # 10 # 133 # Waterbirdsの最大: 133
-
-# # --- DFRを適用する層の指定 ---
-# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
-# # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
-# dfr_target_layer: "last_hidden"
-
-
-
-
-
-########################################################################
-########################################################################
-########################################################################
-
-
-
-
-
-# # # # sp/config.yaml
-#### ColoredMNIST
+# sp/config.yaml
+#### WaterBirds
 
 # ---------------------------------
 # 実験の基本設定
 # ---------------------------------
-experiment_name: "cm_dfr"
-dataset_name: "ColoredMNIST"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
+experiment_name: "test_wb_dfr_100update_identity"
+dataset_name: "WaterBirds"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
 loss_function: "mse"          # "logistic" or "mse"
 activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs', 'elu', 'sigmoid', 'logsigmoid', 'exp'
 initialization_method: "muP"  # "muP" or "NTP"
-use_skip_connections: false   # skip connection (FalseならMLP, TrueならResNet)
+use_skip_connections: false    # skip connection (FalseならMLP, TrueならResNet)
 use_bias: true                # バイアス項の有無
 use_zero_bias_initialization: true # バイアスを0で初期化
 use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
@@ -253,8 +18,8 @@ device: "cuda"                # "cuda" or "cpu"
 # ---------------------------------
 # データセット設定
 # ---------------------------------
-num_train_samples: 10000 # Waterbirdsの最大: 4795
-num_test_samples: 8000   # Waterbirdsの最大: 5794
+num_train_samples: 4795    # Waterbirdsの最大: 4795
+num_test_samples: 5794     # Waterbirdsの最大: 5794
 
 # --- WaterBirds用: 少数派グループの除外 ---
 # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
@@ -267,7 +32,7 @@ use_feature_extractor: true
 # 'ResNet18', 'ResNet50', 'ViT_B_16'
 # DINOv2系: 'DINOv2_ViT_S_14' (384-dim), 'DINOv2_ViT_B_14' (768-dim),
 #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
-feature_extractor_model_name: "DINOv2_ViT_G_14" 
+feature_extractor_model_name: "DINOv2_ViT_G_14" # "DINOv2_ViT_G_14" 
 
 # --- ResNet系 中間層の特徴マップの設定 ---
 # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
@@ -298,7 +63,7 @@ feature_extractor_vit_aggregation_mode: "mean_pool_all"
 
 
 # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
-train_correlation: 1.0 # 1.0
+train_correlation: 0.8
 train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
 train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
 test_correlation: 0.0
@@ -313,22 +78,25 @@ num_residual_blocks: 5     # 残差ブロックの数 L (Total Hidden Layers = 1
 # --- MLP (use_skip_connections: false) 用の設定 ---
 num_hidden_layers: 1       # 全隠れ層の数．1の場合，標準的な two-layer network．
 
-hidden_dim: 1024
-
+hidden_dim: 1024  # 1024 2048  4096   8192
 
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 30 # 30
-train_batch_size: 64     # ERMの場合のバッチサイズ (IW や DRO では無視する)
-eval_batch_size:  512    # 評価時のバッチサイズ
-optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
-learning_rate: 0.01 # 0.01
+epochs: 700 # 30 # 20 # 10000
+train_batch_size: 64 # 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
+eval_batch_size: 512    # 評価時のバッチサイズ # 5794
+optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
+learning_rate: 0.01 # 0.01 # 0.01 # 0.01
 momentum: 0.0
 fix_final_layer: false  # 最終層の重みを固定
 
 # --- debias手法の選択 ---
 debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
+
+# --- Mixup設定 (debias_method: "None" の時のみ有効) ---
+use_mixup: false       # Mixupを使用するかどうか
+mixup_alpha: 1.0      # Beta分布のパラメータ (通常 0.2 ~ 1.0)
 
 # --- Group DRO Settings ---
 dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
@@ -343,7 +111,10 @@ kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが�
 
 # --- DeCov (Decorrelation Loss) の設定 ---
 use_decov_regularization: true
-decov_reg_weight: 0.0000001 # DeCovの正則化強度
+decov_reg_weight: 0.00001 # 0.00001 # 0.00000001 # DeCovの正則化強度
+decov_target_identity: true # TrueにするとDeCovで対角成分(分散)も1に近づける
+
+
 
 # --- コサイン類似度の正則化 ---
 use_cosine_regularization: false
@@ -367,7 +138,7 @@ regularization_decay_start_epoch: 300
 gap_dynamics_factors_analysis_epochs:
 jacobian_norm_analysis_epochs:
 static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
-umap_analysis_epochs: [0, 10, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
+umap_analysis_epochs: [0, 10, 20, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
 
 # 性能差のダイナミクスの要因の分析の設定
 gap_dynamics_factors:
@@ -392,7 +163,7 @@ analysis_target: 'both'
 jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
 # グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
 gradient_gram_num_samples: null 
-show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
+show_and_save_samples: false  # 実行時にデータセットのサンプル画像を表示・保存するか
 
 # 可視化アルゴリズムの選択
 visualization_method: "umap"  # "umap" または "tsne" を指定
@@ -435,20 +206,250 @@ wandb:
 # ---------------------------------
 use_dfr: true # True にすると学習後に DFR を実行
 dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
-dfr_reg: "l2"  # "l1" or "l2", or "none"
-dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
+dfr_reg: "l2"  # "l1", "l2", or "none"
+dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
 dfr_num_retrains: 30 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
 
 # --- DFR用 Validationデータの設定 ---
 # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
 # WaterBirdsの場合は公式Validation Setから，
-# Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリングされる
-dfr_val_samples_per_group: 5000 # 200 # Waterbirdsの最大: 133
+# Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリング
+dfr_val_samples_per_group: 133 # 10 # 10 # 133 # Waterbirdsの最大: 133
 
 # --- DFRを適用する層の指定 ---
 # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
 # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 dfr_target_layer: "last_hidden"
+
+
+
+
+
+########################################################################
+########################################################################
+########################################################################
+
+
+
+
+
+# # # # # sp/config.yaml
+# #### ColoredMNIST
+
+# # ---------------------------------
+# # 実験の基本設定
+# # ---------------------------------
+# experiment_name: "cm_dfr"
+# dataset_name: "ColoredMNIST"  # "ColoredMNIST", "WaterBirds", or "Dominoes"
+# loss_function: "mse"          # "logistic" or "mse"
+# activation_function: "softplus"   # 'relu', 'gelu', 'tanh', 'identity', 'silu', 'softplus', 'abs', 'elu', 'sigmoid', 'logsigmoid', 'exp'
+# initialization_method: "muP"  # "muP" or "NTP"
+# use_skip_connections: false   # skip connection (FalseならMLP, TrueならResNet)
+# use_bias: true                # バイアス項の有無
+# use_zero_bias_initialization: true # バイアスを0で初期化
+# use_grayscale: false          # Trueなら入力画像を白黒(1ch)に変換して次元を削減 (Feature Extractor未使用時を想定)
+# device: "cuda"                # "cuda" or "cpu"
+
+# # ---------------------------------
+# # データセット設定
+# # ---------------------------------
+# num_train_samples: 10000 # Waterbirdsの最大: 4795
+# num_test_samples: 8000   # Waterbirdsの最大: 5794
+
+# # --- WaterBirds用: 少数派グループの除外 ---
+# # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
+# remove_minority_groups_train: true
+
+# # --- 事前特徴抽出器の設定 ---
+# use_feature_extractor: true
+
+# # --- 特徴抽出器のモデル選択 ---
+# # 'ResNet18', 'ResNet50', 'ViT_B_16'
+# # DINOv2系: 'DINOv2_ViT_S_14' (384-dim), 'DINOv2_ViT_B_14' (768-dim),
+# #            'DINOv2_ViT_L_14' (1024-dim), 'DINOv2_ViT_G_14' (1536-dim)
+# feature_extractor_model_name: "DINOv2_ViT_G_14" 
+
+# # --- ResNet系 中間層の特徴マップの設定 ---
+# # [ResNet系 ('ResNet18', 'ResNet50') でのみ有効]
+# # 'avgpool': avgpool 後のベクトル (デフォルト)
+# # 'layer3': ResNetの layer3 出力
+# # 'layer4': ResNetの layer4 出力
+# feature_extractor_resnet_intermediate_layer: "avgpool" 
+
+# # 'resnet_intermediate_layer' が 'avgpool' 以外の場合のAdaptive Poolingサイズ
+# # 1 -> (1x1), 2 -> (2x2), 3 -> (3x3)
+# feature_extractor_resnet_pooling_output_size: 2 
+
+# # --- ViT/DINOv2系 中間層の設定 ---
+# # [ViT/DINOv2系でのみ有効]
+# # 抽出するブロックのインデックス (0 から N-1). 
+# # -1 は最後のブロック, -2 は最後から2番目, ...
+# # (ViT_B_16: 12 blocks (0-11))
+# # (DINOv2_ViT_S_14, DINOv2_ViT_B_14: 12 blocks (0-11))
+# # (DINOv2_ViT_L_14: 24 blocks (0-23))
+# # (DINOv2_ViT_G_14: 40 blocks (0-39))
+# feature_extractor_vit_target_block: -1 # デフォルトは最後のブロック
+
+# # 'target_block' からの特徴をどう集約するか
+# # 'cls_token': [CLS] トークンのみを使用 (デフォルト)
+# # 'mean_pool_patch': パッチトークンのみを平均プーリング
+# # 'mean_pool_all': [CLS] と パッチトークンの両方を平均プーリング
+# feature_extractor_vit_aggregation_mode: "mean_pool_all" 
+
+
+# # --- 合成データセット (ColoredMNIST / Dominoes) 設定 ---
+# train_correlation: 1.0 # 1.0
+# train_label_marginal: 0.0       # E[Y] (ラベルの不均衡度: -1.0 ~ 1.0)
+# train_attribute_marginal: 0.0   # E[A] (属性の不均衡度: -1.0 ~ 1.0)
+# test_correlation: 0.0
+# test_label_marginal: 0.0        # E[Y] (テストセット)
+# test_attribute_marginal: 0.0    # E[A] (テストセット)
+
+# # ---------------------------------
+# # モデル設定
+# # ---------------------------------
+# # --- ResNet (use_skip_connections: true) 用の設定 ---
+# num_residual_blocks: 5     # 残差ブロックの数 L (Total Hidden Layers = 1 + L)
+# # --- MLP (use_skip_connections: false) 用の設定 ---
+# num_hidden_layers: 1       # 全隠れ層の数．1の場合，標準的な two-layer network．
+
+# hidden_dim: 1024
+
+
+# # --------------------------------
+# # 学習設定
+# # ---------------------------------
+# epochs: 30 # 30
+# train_batch_size: 64     # ERMの場合のバッチサイズ (IW や DRO では無視する)
+# eval_batch_size:  512    # 評価時のバッチサイズ
+# optimizer: "Adam"    # "SGD" or "Adam" (Adam は AdamW)
+# learning_rate: 0.01 # 0.01
+# momentum: 0.0
+# fix_final_layer: false  # 最終層の重みを固定
+
+# # --- debias手法の選択 ---
+# debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
+
+# # --- Group DRO Settings ---
+# dro_eta_q: 0.01 # グループ重みqを更新するためのステップサイズ (学習率)
+
+# # --- カーネルの正則化の設定 ---
+# use_kernel_regularization: false
+
+# # 3項それぞれの正則化の強度を個別に設定 (カーネル値)
+# kernel_reg_weight_sameA_diffY: 0.5 # [最小化] 属性が同じでラベルが異なる
+# kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも異なる
+# kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
+
+# # --- DeCov (Decorrelation Loss) の設定 ---
+# use_decov_regularization: true
+# decov_reg_weight: 0.00000001 # DeCovの正則化強度
+# decov_target_identity: false # TrueにするとDeCovで対角成分(分散)も1に近づける
+
+# # --- コサイン類似度の正則化 ---
+# use_cosine_regularization: false
+
+# # 3項それぞれの正則化の強度を個別に設定 (コサイン類似度)
+# cosine_reg_weight_sameA_diffY: 1.0 # [最小化] 属性が同じでラベルが異なる
+# cosine_reg_weight_diffA_diffY: 1.0 # [最小化] 属性が異なりラベルも異なる
+# cosine_reg_weight_diffA_sameY: 1.0 # [最大化] 属性が異なりラベルが同じ
+
+# # --- 正則化のスケジューリング ---
+# # 指定したエポック以降は正則化を無効化する (null または指定なしの場合は常に有効)
+# regularization_end_epoch: 20000
+# # regularization_decay_start_epoch: 減衰を開始するエポック (オプション)
+# regularization_decay_start_epoch: 300
+
+
+# # ------------------------------------------
+# # 解析・可視化の設定
+# # ------------------------------------------
+# # 各種分析の実行エポック (キー自体を省略 or 値を空(None) -> 毎エポック, 空リスト[] -> 無効化)
+# gap_dynamics_factors_analysis_epochs:
+# jacobian_norm_analysis_epochs:
+# static_dynamic_decomposition_analysis_epochs: # 静的/動的な分解の分析エポック
+# umap_analysis_epochs: [0, 10, 30, 50, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 5000, 7000, 10000] # UMAP/t-SNEによる可視化を行うエポックリスト
+
+# # 性能差のダイナミクスの要因の分析の設定
+# gap_dynamics_factors:
+#   # 分析対象とするグループペア [g1, g2] のリスト
+#   group_pairs:
+#     - [[-1, 1], [-1, -1]]  # 少数派・多数派
+#     - [[1, -1], [-1, -1]]
+#     - [[ 1,  -1], [ 1, 1]]
+
+# # 静的・動的な分解の分析の設定
+# static_dynamic_decomposition:
+#   # 分析対象とするグループペア [g_min, g_maj] のリスト
+#   # (d/dt (R_min - R_maj) の要因 (A, B, C) を計算)
+#   group_pairs:
+#     # y=-1 のペア (min=(-1,1), maj=(-1,-1))
+#     - [[-1, 1], [-1, -1]]
+#     # y=+1 のペア (min=(1,-1), maj=(1,1))
+#     - [[1, -1], [1, 1]]
+
+# # 解析対象のデータセット ('train', 'test', 'both')
+# analysis_target: 'both'
+# jacobian_num_samples: 50000    # ヤコビアンを計算するためのグループから使用するサンプルサイズ
+# # グループ勾配の計算用のサンプルサイズ (null の場合は全サンプル使用)
+# gradient_gram_num_samples: null 
+# show_and_save_samples: true  # 実行時にデータセットのサンプル画像を表示・保存するか
+
+# # 可視化アルゴリズムの選択
+# visualization_method: "umap"  # "umap" または "tsne" を指定
+
+# # UMAPの設定
+# analyze_umap_representation: true
+# umap_analysis_target: 'both' # 'train', 'test', 'both'
+# umap_num_samples: 50000 # 計算に使用する最大サンプルサイズ
+# umap_n_neighbors: 15
+# umap_min_dist: 0.1
+
+# # 特異値の解析の設定
+# analyze_singular_values: true # umap_analysis_epochs のタイミングで実行
+# singular_values_analysis_target: 'both' # 'train', 'test', 'both'
+# singular_values_num_samples: 2000 # 特異値の計算に使用するサンプルサイズ
+
+# # t-SNEの設定
+# tsne_perplexity: 30.0
+# tsne_learning_rate: 200.0
+
+# # ---------------------------------
+# # 解析の有効/無効フラグ
+# # ---------------------------------
+# analyze_jacobian_norm: false
+# analyze_gradient_basis: false
+# analyze_gap_dynamics_factors: false
+# analyze_static_dynamic_decomposition: false
+# analyze_model_output_expectation: true
+
+# # ---------------------------------
+# # wandbの設定
+# # ---------------------------------
+# wandb:
+#   enable: true
+#   project: "sp_exp_test"
+#   entity: "mdl-tsukuba"
+
+# # ---------------------------------
+# # DFR (Deep Feature Reweighting) 設定
+# # ---------------------------------
+# use_dfr: true # True にすると学習後に DFR を実行
+# dfr_loss_type: "mse" # "logistic" or "mse" (mseの場合はl2が良い)
+# dfr_reg: "l2"  # "l1" or "l2", or "none"
+# dfr_c_options: [2.0, 1.7, 1.5, 1.2, 1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01] # チューニングする正則化の強度の逆数
+# dfr_num_retrains: 30 # バランスサブサンプリングを繰り返す回数 (重みを平均化)
+
+# # --- DFR用 Validationデータの設定 ---
+# # DFR用のValidationデータにおける各グループのサンプルサイズ (均衡化後のサイズ)
+# # WaterBirdsの場合は公式Validation Setから，
+# # Syntheticデータの場合は学習に使用されなかった残りのデータからサンプリングされる
+# dfr_val_samples_per_group: 5000 # 200 # Waterbirdsの最大: 133
+
+# # --- DFRを適用する層の指定 ---
+# # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
+# # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
+# dfr_target_layer: "last_hidden"
 
 
 
@@ -548,7 +549,7 @@ dfr_target_layer: "last_hidden"
 # momentum: 0.0
 # fix_final_layer: false  # 最終層の重みを固定
 
-# # --- debias手法の選択 ---
+# --- debias手法の選択 ---
 # debias_method: "None" # "None" (ERM), "IW_uniform", "GroupDRO" から選択
 
 # # --- Group DRO Settings ---
