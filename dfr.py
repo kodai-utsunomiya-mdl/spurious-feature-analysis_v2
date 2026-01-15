@@ -369,10 +369,10 @@ def project_simplex(v, z=1.0):
 
 def dfr_train_minimax(X_source, y_source, a_source, best_c, scaler, config):
     """
-    [Projected Gradient Ascent for Worst-Group Risk Minimization with Bootstrap Aggregation]
+    [Projected Gradient Ascent for Worst-Group Risk Minimization]
     Validationデータ全体を使用し，グループ重み lambda を最適化しながら
     重み付きRidge回帰を解くことで，Minimax解 (最悪グループリスク最小化解) を求める．
-    Bagging (Bootstrap Aggregation) を行うことで推定を安定化させる．
+    Bagging を行うことで推定を安定化させる．
     
     Args:
         best_c: dfr_tune で決定されたハイパーパラメータ (正則化係数の逆数 C)
@@ -855,6 +855,216 @@ def compute_risk_decomposition_metrics(Z, y_discrete, a_discrete, w_star):
         'C_YA': C_YA
     }
 
+def compute_nu_risk(Z, y_discrete, a_discrete, w_star, b_star, reg_lambda=0.0):
+    """
+    双対関数のヘッセ行列のスペクトル定数 nu(V_risk) を計算する．
+    
+    nu(V_risk) := min_{u in T_Delta, ||u||=1} u^T (J^T H^{-1} J) u
+    
+    where:
+      H = 2 * (M + lambda * I)  (Primal Hessian, size (m+1)x(m+1))
+      J = [grad_R_g1, ..., grad_R_g4] (Jacobian of group risks, size (m+1)x4)
+      M = E_{Q_bal}[x_aug x_aug^T] (Feature correlation matrix)
+      grad_R_g = nabla_{(w,b)} R_g(w*, b*)
+    
+    Args:
+        Z (np.ndarray): 均衡化された特徴行列 (N, m).
+        y_discrete (np.ndarray): クラスラベル (N,).
+        a_discrete (np.ndarray): スプリアス属性 (N,).
+        w_star (np.ndarray): 学習された重み (1, m) or (m,).
+        b_star (np.ndarray): 学習されたバイアス (1,) or scalar.
+        reg_lambda (float): Ridge正則化係数 (alpha).
+        
+    Returns:
+        nu_val (float): 計算された最小固有値．
+    """
+    N, m = Z.shape
+    
+    # 1. 拡張特徴行列 X_aug (N, m+1) [features, 1]
+    X_aug = np.hstack([Z, np.ones((N, 1))])
+    
+    # パラメータベクトル theta* = [w*, b*]
+    w_vec = w_star.flatten()
+    b_val = float(b_star)
+    theta_star = np.concatenate([w_vec, [b_val]]) # (m+1,)
+    
+    # ターゲットベクトル (float)
+    y_float = y_discrete.astype(float)
+    a_float = a_discrete.astype(float)
+    
+    # 2. Primal Hessian H = 2 * (M + lambda * I_reg)
+    # M = (1/N) X_aug^T X_aug
+    M = (X_aug.T @ X_aug) / N
+    
+    # 正則化項行列
+    Reg = np.eye(m + 1) * reg_lambda
+    Reg[m, m] = 0.0 # Bias term regularization = 0
+    
+    H = 2 * (M + Reg)
+    
+    # Hの逆行列 H_inv
+    # 特異に近い場合は微小値を加算
+    try:
+        H_inv = scipy.linalg.inv(H)
+    except scipy.linalg.LinAlgError:
+        H_inv = scipy.linalg.inv(H + 1e-6 * np.eye(m + 1))
+        
+    # 3. 各グループのリスク勾配 J (m+1, 4)
+    # R_g(theta) = (1/N_g) sum_{i in g} (y_i - x_aug_i^T theta)^2
+    # nabla R_g = -(2/N_g) sum_{i in g} (y_i - f(x_i)) * x_aug_i
+    
+    groups = sorted(list(set(zip(y_float, a_float))))
+    # 想定グループ順序: (-1,-1), (-1,1), (1,-1), (1,1)
+    expected_groups = [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)]
+    
+    grads = []
+    
+    # 残差ベクトル r = y - X_aug theta
+    preds = X_aug @ theta_star
+    residuals = y_float - preds
+    
+    for g_key in expected_groups:
+        mask = (y_float == g_key[0]) & (a_float == g_key[1])
+        n_g = np.sum(mask)
+        
+        if n_g > 0:
+            # -(2/N_g) * X_g^T * residuals_g
+            X_g = X_aug[mask]
+            res_g = residuals[mask]
+            
+            grad_g = -2.0 * (X_g.T @ res_g) / n_g
+            grads.append(grad_g)
+        else:
+            # グループが存在しない場合は0ベクトル (またはNaN扱いだが，計算のため0とする)
+            grads.append(np.zeros(m + 1))
+            
+    J = np.stack(grads, axis=1) # (m+1, 4)
+    
+    # 4. 双対ヘッセ行列 A_dual = J^T H^{-1} J  (4, 4)
+    A_dual = J.T @ H_inv @ J
+    
+    # 5. 接空間 T_Delta 上での最小固有値
+    # T_Delta = {u | sum(u) = 0}
+    # 射影行列 P = I - (1/k) 1 1^T  (k=4)
+    k = 4
+    ones = np.ones((k, 1))
+    P = np.eye(k) - (ones @ ones.T) / k
+    
+    # 射影された行列 P A_dual P の固有値を計算
+    # subspace sum(u)=0 に対応する固有値を取り出す
+    # P A_dual P はランク k-1 以下 (1^T P = 0 なので 1 は固有値 0 の固有ベクトル)
+    # 0 以外の固有値のうち最小のものが求める nu
+    
+    PA_P = P @ A_dual @ P
+    eigvals = np.linalg.eigvalsh(PA_P)
+    
+    # 固有値は昇順．最初の固有値は (数値誤差の範囲で) 0 になるはず (方向 1)
+    # 0より大きい固有値の中で最小のものを探す
+    
+    # 数値誤差を考慮して判定
+    nonzero_eigs = eigvals[eigvals > 1e-8]
+    
+    if len(nonzero_eigs) > 0:
+        nu_val = np.min(nonzero_eigs)
+    else:
+        nu_val = 0.0
+        
+    return nu_val
+
+def analyze_spectral_structure(Z, y_discrete, a_discrete):
+    """
+    特徴共分散行列 Sigma_perp のスペクトル構造と Mahalanobis 距離の分布を解析する．
+    
+    Args:
+        Z (np.ndarray): 均衡化された特徴行列 (N, m).
+        y_discrete (np.ndarray): クラスラベル (N,).
+        a_discrete (np.ndarray): スプリアス属性 (N,).
+        
+    Returns:
+        results (dict): 計算されたスペクトル指標を含む辞書．
+    """
+    N, m = Z.shape
+    tol = 1e-10
+
+    # ターゲットベクトル (float)
+    y_vec = y_discrete.astype(float)
+    a_vec = a_discrete.astype(float)
+
+    # 1. 統計量の計算 (均衡分布 Q_bal 上の期待値に対応する標本統計量)
+    # 中心化
+    Z_centered = Z - np.mean(Z, axis=0)
+    y_centered = y_vec - np.mean(y_vec)
+    a_centered = a_vec - np.mean(a_vec)
+
+    # 全共分散行列 Sigma_total (m, m)
+    Sigma_total = (Z_centered.T @ Z_centered) / N
+    
+    # 信号ベクトル v_Y, v_A (m,)
+    v_Y = (Z_centered.T @ y_centered) / N
+    v_A = (Z_centered.T @ a_centered) / N
+
+    # 2. Sigma_perp の構成
+    # Sigma_perp = Sigma_total - v_Y v_Y^T - v_A v_A^T
+    Sigma_perp = Sigma_total - np.outer(v_Y, v_Y) - np.outer(v_A, v_A)
+
+    # 3. 固有値分解 (対称行列を前提)
+    # eigenvalues: sigma_1 >= sigma_2 >= ... >= sigma_m
+    eigenvalues, eigenvectors = np.linalg.eigh(Sigma_perp)
+    # 降順にソート
+    idx = eigenvalues.argsort()[::-1]
+    sigma = eigenvalues[idx]
+    U = eigenvectors[:, idx]
+
+    # 数値安定性のために微小な正の値を保証
+    sigma_clipped = np.maximum(sigma, tol)
+
+    # 4. 指標の計算
+    # Stable Rank: sum(sigma) / sigma_max
+    stable_rank = np.sum(sigma_clipped) / sigma_clipped[0]
+
+    # Mahalanobis 距離の成分分解
+    # y_i = <v_Y, u_i>, a_i = <v_A, u_i>
+    y_proj = U.T @ v_Y
+    a_proj = U.T @ v_A
+
+    # d_Y^2 = sum (y_i^2 / sigma_i)
+    d_Y_sq_components = (y_proj**2) / sigma_clipped
+    d_A_sq_components = (a_proj**2) / sigma_clipped
+    
+    d_Y_sq = np.sum(d_Y_sq_components)
+    d_A_sq = np.sum(d_A_sq_components)
+
+    # Mahalanobis 空間における alignment (cos phi)
+    # cos_phi = (sum y_i a_i / sigma_i) / (d_Y * d_A)
+    numerator_cos_phi = np.sum((y_proj * a_proj) / sigma_clipped)
+    cos_phi = numerator_cos_phi / (np.sqrt(d_Y_sq) * np.sqrt(d_A_sq) + tol)
+    sin_phi_sq = 1 - cos_phi**2
+
+    # 5. 信号のスペクトル分布 (SNRの集中度)
+    # 固有値を 3 つの領域 (Top 10%, Middle 80%, Bottom 10%) に分割して SNR の寄与を計算
+    m_10 = max(1, m // 10)
+    
+    def get_distribution(components):
+        total = np.sum(components) + tol
+        top = np.sum(components[:m_10]) / total
+        bottom = np.sum(components[-m_10:]) / total
+        return top, bottom
+
+    y_snr_top, y_snr_bottom = get_distribution(d_Y_sq_components)
+    a_snr_top, a_snr_bottom = get_distribution(d_A_sq_components)
+
+    results = {
+        'stable_rank': stable_rank,
+        'd_Y_sq': d_Y_sq,
+        'd_A_sq': d_A_sq,
+        'cos_phi': cos_phi,
+        'sin_phi_sq': sin_phi_sq,
+        'y_snr_distribution': (y_snr_top, y_snr_bottom),
+        'a_snr_distribution': (a_snr_top, a_snr_bottom),
+        'sigma_min_max_ratio': sigma_clipped[-1] / sigma_clipped[0]
+    }
+
+    return results
 
 def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, a_test, device, loss_function_name, X_val=None, y_val=None, a_val=None):
     """
@@ -1060,7 +1270,7 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     print(f"    sigma_2(V_A) (Explanation of A): {sigma_2_A:.6f}")
     print(f"    cos gamma_2 (Feature Alignment Y vs A): {cos_gamma_2:.6f}")
     
-    # --- Risk Decomposition Metrics Calculation (Added) ---
+    # --- Risk Decomposition Metrics Calculation ---
     print(" [Analysis] Computing Risk Decomposition Metrics (C_Y, C_A, C_YA)...")
     risk_decomp = compute_risk_decomposition_metrics(
         X_test_bal, y_test_bal, a_test_bal, avg_coef
@@ -1069,6 +1279,42 @@ def run_dfr_procedure(config, model, X_train, y_train, a_train, X_test, y_test, 
     print(f"    C_Y  (Class Covariance Diff): {risk_decomp['C_Y']:.6f}")
     print(f"    C_A  (Attr Covariance Diff): {risk_decomp['C_A']:.6f}")
     print(f"    C_YA (Interaction Covariance Diff): {risk_decomp['C_YA']:.6f}")
+
+    # --- Nu Risk Calculation (Dual Hessian Spectrum) ---
+    print(" [Analysis] Computing nu(V_risk) (Dual Hessian Spectrum)...")
+    # Ridgeパラメータ (alpha = 1/best_c)
+    reg_alpha = 1.0 / (best_c + 1e-9)
+    nu_val = compute_nu_risk(
+        X_test_bal, y_test_bal, a_test_bal, avg_coef, avg_intercept, reg_lambda=reg_alpha
+    )
+    print(f"    nu(V_risk) (Min Eigenvalue of Dual Hessian on Simplex Tangent Space): {nu_val:.6e}")
+
+    # --- Spectral Analysis ---
+    print("\n" + "-"*40)
+    print(" Analysis: Spectral Structure of Sigma_perp")
+    print("-" * 40)
+    
+    spec_metrics = analyze_spectral_structure(X_test_bal, y_test_bal, a_test_bal)
+    
+    print(f"  Stable Rank (Effective Dimension): {spec_metrics['stable_rank']:.4f}")
+    print(f"  Condition Number (sigma_min / sigma_max): {spec_metrics['sigma_min_max_ratio']:.6e}")
+    print(f"  Mahalanobis Distance d_Y^2 (SNR_Y): {spec_metrics['d_Y_sq']:.4f}")
+    print(f"  Mahalanobis Distance d_A^2 (SNR_A): {spec_metrics['d_A_sq']:.4f}")
+    print(f"  Mahalanobis Alignment (cos phi): {spec_metrics['cos_phi']:.6f}")
+    print(f"  Mahalanobis Orthogonality (sin^2 phi): {spec_metrics['sin_phi_sq']:.6f}")
+    
+    y_top, y_bot = spec_metrics['y_snr_distribution']
+    a_top, a_bot = spec_metrics['a_snr_distribution']
+    print(f"  SNR Distribution (Top 10% vs Bottom 10% of Spectrum):")
+    print(f"    Target Y: Top={y_top:.2%}, Bottom={y_bot:.2%}")
+    print(f"    Attr A:   Top={a_top:.2%}, Bottom={a_bot:.2%}")
+
+    # 理論的な下限値の計算
+    d_Y_sq_val = spec_metrics['d_Y_sq']
+    d_A_sq_val = spec_metrics['d_A_sq']
+    sin_phi_sq_val = spec_metrics['sin_phi_sq']
+    lower_bound = (1 + d_A_sq_val) / (1 + d_Y_sq_val + d_A_sq_val + d_Y_sq_val * d_A_sq_val * sin_phi_sq_val)
+    print(f"  Theoretical Lower Bound of Worst-Group Risk: {lower_bound:.6f}")
 
 
     # --- 4. Baseline Regressions (ERM on Features) ---
