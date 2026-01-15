@@ -23,7 +23,7 @@ num_test_samples: 5794     # Waterbirdsの最大: 5794
 
 # --- WaterBirds用: 少数派グループの除外 ---
 # Trueの場合，訓練データから少数派グループ(y != a)を完全に除外する (WaterBirdsのみ有効)
-remove_minority_groups_train: true
+remove_minority_groups_train: false
 
 # --- 事前特徴抽出器の設定 ---
 use_feature_extractor: true
@@ -83,7 +83,7 @@ hidden_dim: 1024  # 1024 2048  4096   8192
 # --------------------------------
 # 学習設定
 # ---------------------------------
-epochs: 700 # 30 # 20 # 10000
+epochs: 30 # 30 # 20 # 10000
 train_batch_size: 64 # 64    # ERMの場合のバッチサイズ (IW や DRO では無視する) # 4795
 eval_batch_size: 512    # 評価時のバッチサイズ # 5794
 optimizer: "Adam"     # "SGD" or "Adam" (Adam は AdamW)
@@ -110,11 +110,9 @@ kernel_reg_weight_diffA_diffY: 0.0 # [最小化] 属性が異なりラベルも�
 kernel_reg_weight_diffA_sameY: 0.5 # [最大化] 属性が異なりラベルが同じ
 
 # --- DeCov (Decorrelation Loss) の設定 ---
-use_decov_regularization: true
+use_decov_regularization: false
 decov_reg_weight: 0.00001 # 0.00001 # 0.00000001 # DeCovの正則化強度
-decov_target_identity: true # TrueにするとDeCovで対角成分(分散)も1に近づける
-
-
+decov_target_identity: false # TrueにするとDeCovで対角成分(分散)も1に近づける
 
 # --- コサイン類似度の正則化 ---
 use_cosine_regularization: false
@@ -221,7 +219,23 @@ dfr_val_samples_per_group: 133 # 10 # 10 # 133 # Waterbirdsの最大: 133
 # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 dfr_target_layer: "last_hidden"
 
+# --- DFRの手法選択 ---
+# "standard": 従来のバランスサンプリングによる再学習
+# "minimax":  射影勾配法による最悪グループリスク最小化
+dfr_method: "standard"  # "standard" or "minimax"
 
+# --- Minimax DFR のハイパーパラメータ ---
+dfr_minimax_step_size: 0.01 # 勾配上昇のステップサイズ (eta)
+dfr_minimax_iterations: 1000 # 最適化の反復回数 (T)
+dfr_minimax_num_bootstraps: 10 # Minimax最適化におけるブートストラップ回数 (K)
+
+# --- DFRにおける標準化の有無 ---
+dfr_standardization: false # TrueならStandardScalerを適用，Falseなら未適用 (恒等変換)
+
+# --- 標準化に使用するデータのソース ---
+# "train": 訓練データ全体で統計量を計算 (デフォルト)
+# "validation": DFR用の検証データで統計量を計算
+dfr_standardization_source: "validation"
 
 
 
@@ -451,6 +465,23 @@ dfr_target_layer: "last_hidden"
 # # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"
 
+# # --- DFRの手法選択 ---
+# # "standard": 従来のバランスサンプリングによる再学習
+# # "minimax":  射影勾配法による最悪グループリスク最小化
+# dfr_method: "minimax"  # "standard" or "minimax"
+
+# # --- Minimax DFR のハイパーパラメータ ---
+# dfr_minimax_step_size: 0.01 # 勾配上昇のステップサイズ (eta)
+# dfr_minimax_iterations: 1000 # 最適化の反復回数 (T)
+# dfr_minimax_num_bootstraps: 10 # Minimax最適化におけるブートストラップ回数 (K)
+
+# # --- DFRにおける標準化の有無 ---
+# dfr_standardization: true # TrueならStandardScalerを適用，Falseなら未適用 (恒等変換)
+
+# # --- 標準化に使用するデータのソース ---
+# # "train": 訓練データ全体で統計量を計算 (デフォルト)
+# # "validation": DFR用の検証データで統計量を計算
+# dfr_standardization_source: "validation"
 
 
 
@@ -667,3 +698,21 @@ dfr_target_layer: "last_hidden"
 # # "last_hidden": 最終層の直前 (MLPの最後の隠れ層の出力)．デフォルトかつ原論文の設定．
 # # "layer_0": 入力．"layer_1": 第1層の出力．"layer_2": 第2層の出力... など，MLPの中間層名を指定可能．
 # dfr_target_layer: "last_hidden"
+
+# # --- DFRの手法選択 ---
+# # "standard": 従来のバランスサンプリングによる再学習
+# # "minimax":  射影勾配法による最悪グループリスク最小化
+# dfr_method: "minimax"  # "standard" or "minimax"
+
+# # --- Minimax DFR のハイパーパラメータ ---
+# dfr_minimax_step_size: 0.01 # 勾配上昇のステップサイズ (eta)
+# dfr_minimax_iterations: 1000 # 最適化の反復回数 (T)
+# dfr_minimax_num_bootstraps: 10 # Minimax最適化におけるブートストラップ回数 (K)
+
+# # --- DFRにおける標準化の有無 ---
+# dfr_standardization: true # TrueならStandardScalerを適用，Falseなら未適用 (恒等変換)
+
+# # --- 標準化に使用するデータのソース ---
+# # "train": 訓練データ全体で統計量を計算 (デフォルト)
+# # "validation": DFR用の検証データで統計量を計算
+# dfr_standardization_source: "validation"
